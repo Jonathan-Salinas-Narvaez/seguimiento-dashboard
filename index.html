@@ -25,11 +25,35 @@
         };
     </script>
 
+    <!-- MSAL Browser para autenticación corporativa Microsoft / SharePoint -->
+    <script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
+    <script>
+        (function ensureMsalLoaded() {
+            if (window.msal) return;
+            const fallbacks = [
+                './msal-browser.min.js',
+                'msal-browser.min.js',
+                'https://unpkg.com/@azure/msal-browser@2.38.3/lib/msal-browser.min.js',
+                'https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js'
+            ];
+            let idx = 0;
+            function tryNext() {
+                if (window.msal || idx >= fallbacks.length) return;
+                const s = document.createElement('script');
+                s.src = fallbacks[idx++];
+                s.async = false;
+                s.onload = function() {
+                    if (!window.msal) tryNext();
+                };
+                s.onerror = tryNext;
+                document.head.appendChild(s);
+            }
+            tryNext();
+        })();
+    </script>
+
     <!-- SheetJS (xlsx.full.min.js) para lectura de archivos Excel -->
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-
-    <!-- Microsoft Authentication Library (MSAL.js 2.x) para OneDrive / SharePoint Corporativo -->
-    <script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
 
     <!-- html2canvas para exportación a imagen PNG -->
     <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
@@ -92,44 +116,50 @@
                         <span class="font-bold text-sm sm:text-base tracking-tight text-slate-900 dark:text-white">
                             Seguimiento Online AV, SAV y Tarjetas
                         </span>
-                        <span id="status-badge" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
-                            En blanco • Esperando Excel
+                        <span id="status-badge" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                            SharePoint • Listo para conectar
                         </span>
                     </div>
                     <p id="file-info-text" class="text-xs text-slate-500 dark:text-slate-400">
-                        Hoja objetivo: <strong class="font-semibold text-[#0b2545] dark:text-blue-400">Vendedores Salón</strong>
+                        Origen: <strong class="font-semibold text-[#0b2545] dark:text-blue-400">SharePoint (PRUEBA198)</strong> • Hoja: <strong class="font-semibold text-[#0b2545] dark:text-blue-400">Vendedores Salón</strong>
                     </p>
                 </div>
             </div>
 
             <div class="flex flex-wrap items-center gap-2">
-                <button id="btn-refresh-report" type="button" title="Actualizar informe desde SharePoint" class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold bg-[#0b2545] hover:bg-[#133863] text-white shadow-sm transition-all active:scale-95">
+                <!-- Botón Conectar / Sincronizar SharePoint -->
+                <button id="btn-sync-sharepoint" type="button" title="Conectar y actualizar ahora desde SharePoint" class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold bg-[#0078d4] hover:bg-[#106ebe] text-white shadow-sm transition-all active:scale-95">
+                    <svg id="icon-sync-sp" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"></path>
+                    </svg>
+                    <span id="sync-sp-text">Conectar SharePoint</span>
+                </button>
+
+                <!-- Selector de intervalo automático -->
+                <div class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs">
+                    <span class="font-semibold text-slate-600 dark:text-slate-300 hidden sm:inline">Auto:</span>
+                    <select id="auto-refresh-select" title="Frecuencia de actualización automática desde SharePoint" class="bg-transparent font-bold text-[#0b2545] dark:text-blue-400 focus:outline-none cursor-pointer">
+                        <option value="1">1 min</option>
+                        <option value="3">3 min</option>
+                        <option value="5" selected>5 min</option>
+                        <option value="10">10 min</option>
+                        <option value="15">15 min</option>
+                        <option value="0">Manual</option>
+                    </select>
+                </div>
+
+                <button id="btn-refresh-report" type="button" title="Actualizar informe ahora" class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold bg-[#0b2545] hover:bg-[#133863] text-white shadow-sm transition-all active:scale-95">
                     <svg id="icon-refresh-report" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
                     </svg>
-                    <span id="refresh-report-text">Actualizar Informe</span>
+                    <span id="refresh-report-text">Actualizar</span>
                 </button>
 
-                <button id="btn-onedrive-sync" type="button" class="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold bg-[#0078d4] hover:bg-[#106ebe] text-white shadow-sm transition-all active:scale-95">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"></path>
-                    </svg>
-                    <span id="onedrive-btn-text">Sincronizar SharePoint</span>
-                </button>
-
-                <button id="btn-onedrive-config" type="button" title="Configurar URL y credenciales de SharePoint / Entra ID" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 transition-all">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                    </svg>
-                    <span class="hidden sm:inline">Config.</span>
-                </button>
-
-                <label for="excel-file-input" title="Cargar archivo Excel local manualmente" class="cursor-pointer inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 transition-all">
+                <label for="excel-file-input" title="Cargar archivo Excel local como respaldo" class="cursor-pointer inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 shadow-sm transition-all active:scale-95">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
                     </svg>
-                    <span id="upload-btn-text" class="hidden md:inline">Local</span>
+                    <span id="upload-btn-text" class="hidden md:inline">Excel Local</span>
                     <input type="file" id="excel-file-input" accept=".xlsx,.xls,.csv" class="hidden">
                 </label>
 
@@ -153,90 +183,17 @@
         </div>
     </header>
 
-    <!-- MODAL DE CONFIGURACIÓN ONEDRIVE / SHAREPOINT CORPORATIVO -->
-    <div id="onedrive-config-modal" class="hidden fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
-        <div class="bg-white dark:bg-slate-900 rounded-2xl max-w-xl w-full border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden">
-            <div class="bg-[#0b2545] text-white px-6 py-4 flex items-center justify-between">
-                <div class="flex items-center gap-2.5">
-                    <svg class="w-5 h-5 text-sky-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"></path>
-                    </svg>
-                    <h2 class="font-bold text-base">Conexión SharePoint / Microsoft 365</h2>
-                </div>
-                <button type="button" id="btn-close-od-modal" class="text-blue-200 hover:text-white text-xl leading-none font-bold">&times;</button>
-            </div>
-
-            <div class="p-6 space-y-4 text-xs sm:text-sm">
-                <p class="text-slate-600 dark:text-slate-300 leading-relaxed">
-                    El archivo Excel se consulta en SharePoint mediante Microsoft Graph usando la cuenta corporativa del usuario.
-                </p>
-
-                <div>
-                    <label for="od-file-url" class="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-1">
-                        URL del Archivo Excel en SharePoint *
-                    </label>
-                    <input type="url" id="od-file-url" placeholder="https://ripleycorp.sharepoint.com/..." class="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#0078d4]">
-                </div>
-
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                        <label for="od-client-id" class="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-1">
-                            Application (Client) ID — Entra ID *
-                        </label>
-                        <input type="text" id="od-client-id" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" class="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-xs text-slate-900 dark:text-white font-mono focus:outline-none focus:ring-2 focus:ring-[#0078d4]">
-                    </div>
-
-                    <div>
-                        <label for="od-tenant-id" class="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-1">
-                            Directory (Tenant) ID
-                        </label>
-                        <input type="text" id="od-tenant-id" placeholder="organizations (o ID de tu empresa)" class="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-xs text-slate-900 dark:text-white font-mono focus:outline-none focus:ring-2 focus:ring-[#0078d4]">
-                    </div>
-                </div>
-
-                <div>
-                    <label for="od-auto-refresh" class="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-1">
-                        Actualización Automática desde SharePoint
-                    </label>
-                    <select id="od-auto-refresh" class="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-xs sm:text-sm text-slate-900 dark:text-white">
-                        <option value="0">Manual (al abrir o pulsar Actualizar Informe)</option>
-                        <option value="5">Cada 5 minutos</option>
-                        <option value="15">Cada 15 minutos</option>
-                        <option value="30">Cada 30 minutos</option>
-                    </select>
-                </div>
-
-                <div class="p-3 rounded-lg bg-sky-50 dark:bg-sky-950/50 border border-sky-200 dark:border-sky-800 text-[11px] text-sky-900 dark:text-sky-200 space-y-1">
-                    <p class="font-bold">Configuración en Microsoft Entra ID:</p>
-                    <ul class="list-disc pl-4 space-y-0.5">
-                        <li>Plataforma: <strong>Aplicación de página única (SPA)</strong> con URI de redirección igual a la URL donde se publica este HTML.</li>
-                        <li>Permisos delegados Microsoft Graph: <code>Files.Read</code> y <code>Sites.Read.All</code>.</li>
-                    </ul>
-                </div>
-
-                <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
-                    <button type="button" id="btn-cancel-od-config" class="px-4 py-2 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200">
-                        Cancelar
-                    </button>
-                    <button type="button" id="btn-save-and-sync-od" class="px-4 py-2 rounded-lg text-xs font-bold bg-[#0078d4] hover:bg-[#106ebe] text-white shadow-sm">
-                        Guardar y Conectar Ahora
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- ESTADO INICIAL EN BLANCO (CONEXIÓN SHAREPOINT CORPORATIVO) -->
+    <!-- ESTADO INICIAL (CONEXIÓN SHAREPOINT O CARGA LOCAL) -->
     <section id="empty-state-panel" class="flex-1 flex items-center justify-center px-4 py-10">
-        <div id="dropzone-card" class="max-w-2xl w-full bg-white dark:bg-slate-900 rounded-2xl border-2 border-slate-300 dark:border-slate-700 p-8 sm:p-11 text-center shadow-sm transition-all">
-            <div class="mx-auto w-16 h-16 rounded-2xl bg-sky-50 dark:bg-sky-950/60 text-[#0078d4] dark:text-sky-400 flex items-center justify-center mb-5">
+        <div id="dropzone-card" class="max-w-2xl w-full bg-white dark:bg-slate-900 rounded-2xl border-2 border-dashed border-slate-300 dark:border-slate-700 p-8 sm:p-11 text-center shadow-sm transition-all">
+            <div class="mx-auto w-16 h-16 rounded-2xl bg-blue-50 dark:bg-blue-950/60 text-[#0078d4] dark:text-blue-400 flex items-center justify-center mb-5">
                 <svg class="w-9 h-9" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"></path>
                 </svg>
             </div>
 
-            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-sky-50 text-[#0078d4] dark:bg-sky-950 dark:text-sky-300 border border-sky-200 dark:border-sky-800 mb-3">
-                SharePoint Corporativo • Microsoft 365
+            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-blue-50 text-[#0078d4] dark:bg-blue-950 dark:text-blue-300 border border-blue-200 dark:border-blue-800 mb-3">
+                SharePoint Online • Hoja Vendedores Salón
             </span>
 
             <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
@@ -246,34 +203,29 @@
                 Dashboard Captacion, AV/SAV
             </p>
 
-            <p class="text-sm text-slate-600 dark:text-slate-400 mt-3 max-w-lg mx-auto leading-relaxed">
-                Conecta tu cuenta corporativa de Microsoft para leer directamente <strong class="font-semibold text-slate-800 dark:text-slate-200">Seguimiento Online Av, Sav y Tarjetas.xlsx</strong> desde SharePoint.
+            <p id="initial-sp-msg" class="text-sm text-slate-600 dark:text-slate-400 mt-3 max-w-lg mx-auto leading-relaxed">
+                Conecta tu cuenta corporativa de Microsoft para sincronizar automáticamente con <strong class="font-semibold text-slate-800 dark:text-slate-200">Seguimiento Online Av, Sav y Tarjetas.xlsx</strong> en SharePoint, o arrastra un archivo local aquí.
             </p>
 
-            <div id="od-quick-status" class="mt-4 text-xs text-slate-500 dark:text-slate-400">
-                Estado: <span id="od-config-summary" class="font-semibold text-emerald-700 dark:text-emerald-400">Client ID y enlace SharePoint configurados</span>
-            </div>
-
             <div id="upload-error-box" class="hidden mt-5 p-4 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 text-left">
-                <p id="upload-error-text" class="text-xs sm:text-sm font-semibold text-rose-700 dark:text-rose-300"></p>
+                <p id="upload-error-text" class="text-xs sm:text-sm font-semibold text-rose-700 dark:text-rose-300 break-words"></p>
             </div>
 
             <div class="mt-6 flex flex-wrap items-center justify-center gap-3">
-                <button type="button" id="btn-connect-onedrive-main" class="inline-flex items-center gap-2 px-6 py-3 rounded-lg text-sm font-bold bg-[#0078d4] hover:bg-[#106ebe] text-white shadow-sm transition-all active:scale-95">
+                <button id="btn-hero-connect-sp" type="button" class="cursor-pointer inline-flex items-center gap-2 px-6 py-3 rounded-lg text-sm font-bold bg-[#0078d4] hover:bg-[#106ebe] text-white shadow-sm transition-all active:scale-95">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"></path>
                     </svg>
-                    <span id="btn-connect-od-main-text">Conectar y Cargar desde SharePoint</span>
+                    <span>Conectar con SharePoint</span>
                 </button>
 
-                <button type="button" id="btn-open-od-config-main" class="inline-flex items-center gap-2 px-4 py-3 rounded-lg text-sm font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 transition-all">
-                    <span>Configurar Enlace / Tenant</span>
-                </button>
+                <label for="excel-file-input" class="cursor-pointer inline-flex items-center gap-2 px-5 py-3 rounded-lg text-sm font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 shadow-sm transition-all active:scale-95">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+                    </svg>
+                    <span>Cargar Archivo Local</span>
+                </label>
             </div>
-
-            <p class="text-[11px] text-slate-400 dark:text-slate-500 mt-5">
-                También puedes arrastrar un archivo <code>.xlsx</code> aquí o usar el botón <strong>Local</strong> arriba.
-            </p>
         </div>
     </section>
 
@@ -283,7 +235,6 @@
         <!-- 1. BANNER AZUL MARINO SUPERIOR ESTILO REPORTE EJECUTIVO -->
         <section class="rounded-xl bg-[#0b2545] text-white p-5 sm:p-6 shadow-md border border-[#133863]">
             <div class="flex flex-col gap-5">
-                <!-- Fila superior del banner: Título a la izquierda y Badges/Corte a la derecha -->
                 <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
                     <div class="space-y-1 min-w-0">
                         <p class="text-[11px] font-bold uppercase tracking-widest text-blue-200/90">
@@ -298,6 +249,10 @@
                     </div>
 
                     <div class="flex items-center gap-2 flex-wrap shrink-0">
+                        <span id="header-sync-badge" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-emerald-500/20 border border-emerald-400/30 text-[11px] font-semibold text-emerald-200">
+                            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                            <span id="header-sync-text">Sincronizado</span>
+                        </span>
                         <span id="header-corte-badge" class="inline-flex items-center px-2.5 py-1 rounded bg-white/10 border border-white/20 text-[11px] font-semibold uppercase tracking-wider text-blue-100">
                             Corte: Actual
                         </span>
@@ -611,11 +566,30 @@
         </section>
 
         <footer class="text-center text-xs text-slate-400 dark:text-slate-500 pb-3">
-            Reporte Financiero: SUPERVISOR • Dashboard Captacion, AV/SAV • Archivo: <span id="footer-file-name">-</span>
+            Reporte Financiero: SUPERVISOR • Dashboard Captacion, AV/SAV • Fuente: <span id="footer-file-name">-</span>
         </footer>
     </main>
 
 <script>
+        /* =========================================================================
+           CONFIGURACIÓN DE CONEXIÓN A SHAREPOINT VÍA MICROSOFT GRAPH + MSAL
+           ========================================================================= */
+        const SharePointConfig = {
+            clientId: 'e788907c-8736-4348-b1d2-3fbaa6fadfdc',
+            tenantId: '326c2335-66a0-4d53-aa59-0afa0692c5b2',
+            redirectUri: window.location.origin + window.location.pathname,
+            fileUrl: 'https://ripleycorp.sharepoint.com/sites/PRUEBA198/Documentos%20compartidos/Seguimiento/11._Noviembre/Seguimiento%20Online%20Av,%20Sav%20y%20Tarjetas.xlsx',
+            siteHostname: 'ripleycorp.sharepoint.com',
+            sitePath: '/sites/PRUEBA198',
+            fileRelativePath: 'Seguimiento/11._Noviembre/Seguimiento Online Av, Sav y Tarjetas.xlsx',
+            scopes: ['Files.Read.All', 'Sites.Read.All'],
+            autoRefreshMinutes: 5,
+            timerId: null,
+            msalInstance: null,
+            isSyncing: false,
+            lastSourceMode: 'sharepoint' // 'sharepoint' | 'local'
+        };
+
         const AppState = {
             records: [],
             filteredRecords: [],
@@ -648,6 +622,9 @@
             }
         };
 
+        /* =========================================================================
+           UTILIDADES DE FORMATO Y PARSEO
+           ========================================================================= */
         function formatCLP(value) {
             const num = Math.round(Number(value) || 0);
             return `$ ${new Intl.NumberFormat('es-CL', { maximumFractionDigits: 0 }).format(num)}`;
@@ -668,7 +645,7 @@
                 .trim()
                 .toLowerCase()
                 .normalize('NFD')
-                .replace(/[\u0300-\u036f]/g, '')
+                .replace(/[̀-ͯ]/g, '')
                 .replace(/\s+/g, ' ');
         }
 
@@ -746,263 +723,250 @@
             }, 4500);
         }
 
-        const DEFAULT_ONEDRIVE_CONFIG = {
-            clientId: 'e788907c-8736-4348-b1d2-3fbaa6fadfdc',
-            tenantId: '326c2335-66a0-4d53-aa59-0afa0692c5b2',
-            fileUrl: 'https://ripleycorp.sharepoint.com/sites/PRUEBA198/Documentos%20compartidos/Seguimiento/11._Noviembre/Seguimiento%20Online%20Av,%20Sav%20y%20Tarjetas.xlsx',
-            autoRefreshMinutes: 0
-        };
-
-        const OneDriveState = {
-            config: { ...DEFAULT_ONEDRIVE_CONFIG },
-            msalInstance: null,
-            account: null,
-            refreshTimer: null,
-            lastSyncTime: null
-        };
-
-        function loadOneDriveConfig() {
-            try {
-                const saved = localStorage.getItem('od_corp_dashboard_config_v2');
-                if (saved) {
-                    const parsed = JSON.parse(saved);
-                    OneDriveState.config = {
-                        clientId: parsed.clientId || DEFAULT_ONEDRIVE_CONFIG.clientId,
-                        tenantId: parsed.tenantId || DEFAULT_ONEDRIVE_CONFIG.tenantId,
-                        fileUrl: parsed.fileUrl || DEFAULT_ONEDRIVE_CONFIG.fileUrl,
-                        autoRefreshMinutes: Number(parsed.autoRefreshMinutes || DEFAULT_ONEDRIVE_CONFIG.autoRefreshMinutes || 0)
-                    };
-                }
-            } catch (e) {
-                console.warn('No se pudo leer configuración guardada de OneDrive/SharePoint:', e);
+        /* =========================================================================
+           AUTENTICACIÓN MSAL Y DESCARGA DESDE SHAREPOINT (GRAPH API)
+           ========================================================================= */
+        async function waitForMsal(timeoutMs = 3000) {
+            if (window.msal) return window.msal;
+            const start = Date.now();
+            while (!window.msal && (Date.now() - start) < timeoutMs) {
+                await new Promise(r => setTimeout(r, 80));
             }
-            updateOneDriveConfigUI();
+            return window.msal || null;
         }
 
-        function saveOneDriveConfig(newCfg) {
-            OneDriveState.config = { ...OneDriveState.config, ...newCfg };
-            OneDriveState.msalInstance = null;
-            try {
-                localStorage.setItem('od_corp_dashboard_config_v2', JSON.stringify(OneDriveState.config));
-            } catch (e) {
-                console.warn('No se pudo guardar en localStorage:', e);
+        async function getMsalInstance() {
+            const msalLib = await waitForMsal(3000);
+            if (!msalLib) {
+                throw new Error('No se pudo cargar la librería de autenticación de Microsoft (msal-browser). Revisa tu conexión o sube msal-browser.min.js junto al HTML.');
             }
-            updateOneDriveConfigUI();
-            setupAutoRefreshTimer();
-        }
-
-        function updateOneDriveConfigUI() {
-            const { clientId, tenantId, fileUrl, autoRefreshMinutes } = OneDriveState.config;
-            const urlInput = document.getElementById('od-file-url');
-            const clientInput = document.getElementById('od-client-id');
-            const tenantInput = document.getElementById('od-tenant-id');
-            const autoSel = document.getElementById('od-auto-refresh');
-
-            if (urlInput) urlInput.value = fileUrl || '';
-            if (clientInput) clientInput.value = clientId || '';
-            if (tenantInput) tenantInput.value = tenantId || '326c2335-66a0-4d53-aa59-0afa0692c5b2';
-            if (autoSel) autoSel.value = String(autoRefreshMinutes || 0);
-
-            const summaryEl = document.getElementById('od-config-summary');
-            const mainBtnText = document.getElementById('btn-connect-od-main-text');
-            if (summaryEl) {
-                if (clientId && fileUrl) {
-                    summaryEl.textContent = 'Client ID y enlace SharePoint configurados';
-                    summaryEl.className = 'font-semibold text-emerald-700 dark:text-emerald-400';
-                    if (mainBtnText) mainBtnText.textContent = 'Conectar y Cargar desde SharePoint';
-                } else {
-                    summaryEl.textContent = 'Pendiente de configurar enlace o Client ID';
-                    summaryEl.className = 'font-semibold text-amber-700 dark:text-amber-400';
-                    if (mainBtnText) mainBtnText.textContent = 'Configurar y Conectar SharePoint';
-                }
-            }
-        }
-
-        function openOneDriveModal() {
-            updateOneDriveConfigUI();
-            document.getElementById('onedrive-config-modal').classList.remove('hidden');
-        }
-
-        function closeOneDriveModal() {
-            document.getElementById('onedrive-config-modal').classList.add('hidden');
-        }
-
-        function getMsalInstance() {
-            const { clientId, tenantId } = OneDriveState.config;
-            if (!clientId) {
-                throw new Error('Falta configurar el Application (Client) ID de Entra ID.');
-            }
-            if (typeof msal === 'undefined') {
-                throw new Error('La librería de autenticación de Microsoft (MSAL.js) no se cargó.');
-            }
-            if (!OneDriveState.msalInstance) {
-                const redirectUri = window.location.origin + window.location.pathname;
-                OneDriveState.msalInstance = new msal.PublicClientApplication({
+            if (!SharePointConfig.msalInstance) {
+                SharePointConfig.msalInstance = new msal.PublicClientApplication({
                     auth: {
-                        clientId: clientId.trim(),
-                        authority: `https://login.microsoftonline.com/${(tenantId || 'organizations').trim()}`,
-                        redirectUri
+                        clientId: SharePointConfig.clientId,
+                        authority: `https://login.microsoftonline.com/${SharePointConfig.tenantId}`,
+                        redirectUri: SharePointConfig.redirectUri
                     },
                     cache: {
                         cacheLocation: 'localStorage',
                         storeAuthStateInCookie: false
                     }
                 });
+                await SharePointConfig.msalInstance.initialize();
             }
-            return OneDriveState.msalInstance;
+            return SharePointConfig.msalInstance;
         }
 
-        function encodeSharingUrlToGraphId(sharingUrl) {
-            const utf8Bytes = new TextEncoder().encode(sharingUrl.trim());
+        function encodeGraphSharingUrl(url) {
+            const bytes = new TextEncoder().encode(url.trim());
             let binary = '';
-            for (let i = 0; i < utf8Bytes.length; i++) {
-                binary += String.fromCharCode(utf8Bytes[i]);
+            for (let i = 0; i < bytes.length; i++) {
+                binary += String.fromCharCode(bytes[i]);
             }
-            const base64 = btoa(binary)
-                .replace(/=+$/, '')
+            return 'u!' + btoa(binary)
+                .replace(/\+/g, '-')
                 .replace(/\//g, '_')
-                .replace(/\+/g, '-');
-            return 'u!' + base64;
+                .replace(/=+$/, '');
         }
 
-        async function acquireCorporateGraphToken(silentOnly = false) {
-            const msalApp = getMsalInstance();
-            const scopes = ['User.Read', 'Files.Read', 'Sites.Read.All'];
-
-            const accounts = msalApp.getAllAccounts();
-            if (accounts.length > 0 && !OneDriveState.account) {
-                OneDriveState.account = accounts[0];
+        async function acquireSharePointToken(interactive = false) {
+            const pca = await getMsalInstance();
+            const redirectResponse = await pca.handleRedirectPromise().catch(() => null);
+            if (redirectResponse && redirectResponse.account) {
+                pca.setActiveAccount(redirectResponse.account);
+                return redirectResponse.accessToken;
             }
 
-            if (OneDriveState.account) {
+            const accounts = pca.getAllAccounts();
+            const activeAccount = pca.getActiveAccount() || accounts[0];
+
+            if (activeAccount) {
                 try {
-                    const silentResult = await msalApp.acquireTokenSilent({
-                        scopes,
-                        account: OneDriveState.account
+                    const silentResult = await pca.acquireTokenSilent({
+                        scopes: SharePointConfig.scopes,
+                        account: activeAccount
                     });
                     return silentResult.accessToken;
                 } catch (silentErr) {
-                    if (silentOnly) throw silentErr;
+                    if (!interactive) return null;
                 }
             }
 
-            if (silentOnly) {
-                throw new Error('Sesión corporativa expirada. Haz clic en Actualizar Informe para iniciar sesión.');
-            }
+            if (!interactive) return null;
 
-            const loginResult = await msalApp.loginPopup({
-                scopes,
-                prompt: 'select_account'
-            });
-            OneDriveState.account = loginResult.account;
-            return loginResult.accessToken;
+            try {
+                const popupResult = await pca.loginPopup({
+                    scopes: SharePointConfig.scopes
+                });
+                pca.setActiveAccount(popupResult.account);
+                return popupResult.accessToken;
+            } catch (popupErr) {
+                // Respaldo con redirect si el navegador (ej. móvil) bloquea ventanas emergentes
+                const errCode = popupErr?.errorCode || '';
+                if (
+                    errCode.includes('popup_window_error') ||
+                    errCode.includes('empty_window_error') ||
+                    errCode.includes('user_cancelled') === false
+                ) {
+                    await pca.loginRedirect({ scopes: SharePointConfig.scopes });
+                    return null;
+                }
+                throw popupErr;
+            }
         }
 
-        async function syncFromCorporateOneDrive(silentOnly = false) {
-            const { clientId, fileUrl } = OneDriveState.config;
-            if (!clientId || !fileUrl) {
-                openOneDriveModal();
-                return false;
+        async function downloadExcelBufferFromGraph(token) {
+            const headers = { Authorization: `Bearer ${token}` };
+
+            // Método 1: Endpoint /shares/{encodedUrl}/driveItem/content
+            const shareId = encodeGraphSharingUrl(SharePointConfig.fileUrl);
+            const shareEndpoint = `https://graph.microsoft.com/v1.0/shares/${shareId}/driveItem/content`;
+            const res1 = await fetch(shareEndpoint, { headers, cache: 'no-store' });
+            if (res1.ok) {
+                return await res1.arrayBuffer();
             }
+
+            // Método 2 (respaldo robusto): Resolver site-id y ruta relativa dentro de Documentos compartidos
+            const siteUrl = `https://graph.microsoft.com/v1.0/sites/${SharePointConfig.siteHostname}:${SharePointConfig.sitePath}`;
+            const siteRes = await fetch(siteUrl, { headers });
+            if (!siteRes.ok) {
+                throw new Error(`No se pudo acceder al sitio SharePoint (HTTP ${siteRes.status}). Verifica permisos Sites.Read.All / Files.Read.All.`);
+            }
+            const siteData = await siteRes.json();
+            const encodedPath = SharePointConfig.fileRelativePath
+                .split('/')
+                .map(seg => encodeURIComponent(seg))
+                .join('/');
+
+            const itemContentUrl = `https://graph.microsoft.com/v1.0/sites/${siteData.id}/drive/root:/${encodedPath}:/content`;
+            const res2 = await fetch(itemContentUrl, { headers, cache: 'no-store' });
+            if (!res2.ok) {
+                throw new Error(`No se pudo descargar el Excel desde SharePoint (HTTP ${res2.status}).`);
+            }
+            return await res2.arrayBuffer();
+        }
+
+        function setSyncButtonsLoading(loading) {
+            const btnSp = document.getElementById('btn-sync-sharepoint');
+            const iconSp = document.getElementById('icon-sync-sp');
+            const textSp = document.getElementById('sync-sp-text');
+            const btnHero = document.getElementById('btn-hero-connect-sp');
+            const btnRefresh = document.getElementById('btn-refresh-report');
+            const iconRefresh = document.getElementById('icon-refresh-report');
+
+            if (btnSp) btnSp.disabled = loading;
+            if (btnHero) btnHero.disabled = loading;
+            if (btnRefresh) btnRefresh.disabled = loading;
+
+            if (loading) {
+                if (iconSp) iconSp.classList.add('animate-spin');
+                if (iconRefresh) iconRefresh.classList.add('animate-spin');
+                if (textSp) textSp.textContent = 'Sincronizando...';
+            } else {
+                if (iconSp) iconSp.classList.remove('animate-spin');
+                if (iconRefresh) iconRefresh.classList.remove('animate-spin');
+                const connected = SharePointConfig.msalInstance && SharePointConfig.msalInstance.getAllAccounts().length > 0;
+                if (textSp) textSp.textContent = connected ? 'SharePoint Conectado' : 'Conectar SharePoint';
+            }
+        }
+
+        async function syncFromSharePoint({ interactive = false, silentToast = false } = {}) {
+            if (SharePointConfig.isSyncing) return false;
+            SharePointConfig.isSyncing = true;
+            setSyncButtonsLoading(true);
 
             const errorBox = document.getElementById('upload-error-box');
             const errorText = document.getElementById('upload-error-text');
-            if (errorBox) errorBox.classList.add('hidden');
-
-            const syncBtnText = document.getElementById('onedrive-btn-text');
-            const mainBtnText = document.getElementById('btn-connect-od-main-text');
-            if (syncBtnText) syncBtnText.textContent = 'Sincronizando...';
-            if (mainBtnText) mainBtnText.textContent = 'Conectando con Microsoft 365...';
 
             try {
-                const token = await acquireCorporateGraphToken(silentOnly);
-                const shareId = encodeSharingUrlToGraphId(fileUrl);
-
-                const metaResp = await fetch(`https://graph.microsoft.com/v1.0/shares/${shareId}/driveItem`, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
-
-                if (!metaResp.ok) {
-                    const errBody = await metaResp.text();
-                    throw new Error(`No se pudo acceder al archivo en SharePoint (HTTP ${metaResp.status}). ${errBody}`);
+                const token = await acquireSharePointToken(interactive);
+                if (!token) {
+                    return false;
                 }
 
-                const driveItem = await metaResp.json();
-                const remoteFileName = driveItem.name || 'Seguimiento Online Av, Sav y Tarjetas.xlsx';
-
-                const contentResp = await fetch(`https://graph.microsoft.com/v1.0/shares/${shareId}/driveItem/content`, {
-                    headers: { Authorization: `Bearer ${token}` }
+                const arrayBuffer = await downloadExcelBufferFromGraph(token);
+                const stamp = new Date().toLocaleTimeString('es-CL', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit'
                 });
 
-                if (!contentResp.ok) {
-                    throw new Error(`Error al descargar el contenido del Excel desde SharePoint (HTTP ${contentResp.status}).`);
+                SharePointConfig.lastSourceMode = 'sharepoint';
+                processExcelArrayBuffer(
+                    arrayBuffer,
+                    `SharePoint • Seguimiento Online Av, Sav y Tarjetas.xlsx (${stamp})`,
+                    true
+                );
+
+                const syncTextEl = document.getElementById('header-sync-text');
+                if (syncTextEl) {
+                    const mins = Number(SharePointConfig.autoRefreshMinutes);
+                    syncTextEl.textContent = mins > 0
+                        ? `SharePoint Live (${stamp} • cada ${mins}m)`
+                        : `SharePoint (${stamp})`;
                 }
 
-                const arrayBuffer = await contentResp.arrayBuffer();
-                const syncStamp = new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-                OneDriveState.lastSyncTime = syncStamp;
-
-                processExcelArrayBuffer(arrayBuffer, `${remoteFileName} (SharePoint • ${syncStamp})`, true);
-
-                if (syncBtnText) syncBtnText.textContent = `Sincronizar (${syncStamp})`;
-                if (mainBtnText) mainBtnText.textContent = 'Conectar y Cargar desde SharePoint';
+                if (!silentToast) {
+                    notifyUser(`Sincronizado con SharePoint (${stamp}).`, 'success');
+                }
                 return true;
             } catch (err) {
-                console.error('Error sincronizando SharePoint:', err);
-                const msg = `Error SharePoint Corporativo: ${err.message || 'No se pudo conectar'}`;
-                if (errorText && errorBox) {
-                    errorText.textContent = msg;
+                console.error('Error sincronizando con SharePoint:', err);
+                const msg = err?.message || 'No se pudo conectar con SharePoint.';
+                if (errorBox && errorText && AppState.records.length === 0) {
+                    errorText.textContent = `Error SharePoint: ${msg}`;
                     errorBox.classList.remove('hidden');
                 }
-                if (!silentOnly) {
-                    notifyUser(msg, 'error');
+                if (!silentToast) {
+                    notifyUser(`Error SharePoint: ${msg}`, 'error');
                 }
-                if (syncBtnText) syncBtnText.textContent = 'Sincronizar SharePoint';
-                if (mainBtnText) mainBtnText.textContent = 'Reintentar Conexión SharePoint';
                 return false;
+            } finally {
+                SharePointConfig.isSyncing = false;
+                setSyncButtonsLoading(false);
             }
+        }
+
+        function startAutoRefreshTimer() {
+            if (SharePointConfig.timerId) {
+                clearInterval(SharePointConfig.timerId);
+                SharePointConfig.timerId = null;
+            }
+
+            const minutes = Number(SharePointConfig.autoRefreshMinutes);
+            if (!minutes || minutes <= 0) return;
+
+            const intervalMs = minutes * 60 * 1000;
+            SharePointConfig.timerId = setInterval(async () => {
+                if (document.hidden) return;
+                if (SharePointConfig.lastSourceMode !== 'sharepoint') return;
+                await syncFromSharePoint({ interactive: false, silentToast: true });
+            }, intervalMs);
         }
 
         async function handleRefreshReportClick() {
-            const btn = document.getElementById('btn-refresh-report');
-            const labelEl = document.getElementById('refresh-report-text');
-            const iconEl = document.getElementById('icon-refresh-report');
+            if (SharePointConfig.lastSourceMode === 'sharepoint' || !AppState.lastLocalBuffer) {
+                const ok = await syncFromSharePoint({ interactive: true, silentToast: false });
+                if (ok) return;
+            }
 
-            if (btn) btn.disabled = true;
-            if (labelEl) labelEl.textContent = 'Actualizando...';
-            if (iconEl) iconEl.classList.add('animate-spin');
-
-            try {
-                const { clientId, fileUrl } = OneDriveState.config;
-                if (clientId && fileUrl) {
-                    await syncFromCorporateOneDrive(false);
-                } else if (AppState.lastLocalBuffer) {
-                    const stamp = new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-                    processExcelArrayBuffer(AppState.lastLocalBuffer, `${AppState.lastLocalFileName || 'Archivo Local'} (Actualizado ${stamp})`, false);
-                } else {
-                    openOneDriveModal();
-                }
-            } finally {
-                if (btn) btn.disabled = false;
-                if (labelEl) labelEl.textContent = 'Actualizar Informe';
-                if (iconEl) iconEl.classList.remove('animate-spin');
+            if (AppState.lastLocalBuffer) {
+                const stamp = new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                processExcelArrayBuffer(
+                    AppState.lastLocalBuffer,
+                    `${AppState.lastLocalFileName || 'Archivo Excel'} (Actualizado ${stamp})`,
+                    false
+                );
+            } else {
+                const fileInput = document.getElementById('excel-file-input');
+                if (fileInput) fileInput.click();
             }
         }
 
-        function setupAutoRefreshTimer() {
-            if (OneDriveState.refreshTimer) {
-                clearInterval(OneDriveState.refreshTimer);
-                OneDriveState.refreshTimer = null;
-            }
-            const mins = Number(OneDriveState.config.autoRefreshMinutes || 0);
-            if (mins > 0 && OneDriveState.config.clientId && OneDriveState.config.fileUrl) {
-                OneDriveState.refreshTimer = setInterval(() => {
-                    syncFromCorporateOneDrive(true);
-                }, mins * 60 * 1000);
-            }
-        }
-
-        function processExcelArrayBuffer(arrayBuffer, sourceLabel, isFromOneDrive = false) {
+        /* =========================================================================
+           PROCESAMIENTO DE EXCEL (SHEETJS)
+           ========================================================================= */
+        function processExcelArrayBuffer(arrayBuffer, sourceLabel, isFromSharePoint = false) {
             const errorBox = document.getElementById('upload-error-box');
             const errorText = document.getElementById('upload-error-text');
             if (errorBox) errorBox.classList.add('hidden');
@@ -1103,7 +1067,7 @@
                 AppState.corteLabel = corteFromCell || (uniqueDates.length === 1 ? uniqueDates[0] : (uniqueDates.length > 1 ? `${uniqueDates[0]} a ${uniqueDates[uniqueDates.length - 1]}` : ''));
                 AppState.fileName = sourceLabel;
 
-                activateDashboard(sheetName, headerRowIndex + 1, parsedRecords.length, isFromOneDrive);
+                activateDashboard(sheetName, headerRowIndex + 1, parsedRecords.length, isFromSharePoint);
                 if (wasAlreadyLoaded) {
                     AppState.filters = prevFilters;
                     populateFilters();
@@ -1111,7 +1075,10 @@
                 } else {
                     resetAllFilters();
                 }
-                notifyUser(`Informe actualizado: ${parsedRecords.length} registros desde "${sheetName}".`, 'success');
+
+                if (!isFromSharePoint) {
+                    notifyUser(`Informe cargado: ${parsedRecords.length} registros desde "${sheetName}".`, 'success');
+                }
             } catch (err) {
                 console.error('Error crítico al leer Excel:', err);
                 const msg = `Error al procesar el archivo Excel: ${err.message || 'formato no válido'}.`;
@@ -1127,6 +1094,7 @@
             if (!file) return;
             const reader = new FileReader();
             reader.onload = function (evt) {
+                SharePointConfig.lastSourceMode = 'local';
                 AppState.lastLocalBuffer = evt.target.result;
                 AppState.lastLocalFileName = file.name;
                 processExcelArrayBuffer(evt.target.result, file.name, false);
@@ -1320,21 +1288,21 @@
             };
         }
 
-        function activateDashboard(sheetName, headerRowNum, recordCount, isFromOneDrive = false) {
+        function activateDashboard(sheetName, headerRowNum, recordCount, isFromSharePoint = false) {
             document.getElementById('empty-state-panel').classList.add('hidden');
             document.getElementById('dashboard-main-container').classList.remove('hidden');
 
             const badge = document.getElementById('status-badge');
-            if (isFromOneDrive) {
-                badge.textContent = 'Conectado a SharePoint Corporativo';
-                badge.className = 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-sky-100 text-sky-800 dark:bg-sky-900/50 dark:text-sky-300 border border-sky-200 dark:border-sky-800';
-            } else {
-                badge.textContent = 'Archivo Local Cargado';
+            if (isFromSharePoint) {
+                badge.textContent = 'SharePoint Online • Conectado';
                 badge.className = 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800';
+            } else {
+                badge.textContent = 'Excel Local Cargado';
+                badge.className = 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800';
             }
 
             document.getElementById('file-info-text').innerHTML =
-                `Origen: <strong class="font-semibold text-slate-800 dark:text-slate-200">${AppState.fileName}</strong> • Hoja: <strong class="font-semibold text-blue-700 dark:text-blue-400">${sheetName}</strong> (Encabezados fila ${headerRowNum})`;
+                `Origen: <strong class="font-semibold text-slate-800 dark:text-slate-200">${AppState.fileName}</strong> • Hoja: <strong class="font-semibold text-blue-700 dark:text-blue-400">${sheetName}</strong> (Fila ${headerRowNum})`;
             document.getElementById('btn-export-full-png').disabled = false;
             document.getElementById('footer-file-name').textContent = `${AppState.fileName} (${recordCount} filas válidas)`;
 
@@ -2029,7 +1997,7 @@
         async function exportSectionAsPNG(elementId, filePrefix) {
             const target = document.getElementById(elementId);
             if (!target || target.classList.contains('hidden')) {
-                notifyUser('Carga primero un archivo Excel para exportar el reporte.', 'warning');
+                notifyUser('Carga primero los datos para exportar el reporte.', 'warning');
                 return;
             }
 
@@ -2097,7 +2065,10 @@
             }
         }
 
-        document.addEventListener('DOMContentLoaded', () => {
+        /* =========================================================================
+           INICIALIZACIÓN Y EVENTOS DOM
+           ========================================================================= */
+        document.addEventListener('DOMContentLoaded', async () => {
             const fileInput = document.getElementById('excel-file-input');
             const dropzoneCard = document.getElementById('dropzone-card');
 
@@ -2105,36 +2076,27 @@
                 document.documentElement.classList.toggle('dark');
             });
 
-            loadOneDriveConfig();
-            setupAutoRefreshTimer();
-
-            document.getElementById('btn-refresh-report').addEventListener('click', handleRefreshReportClick);
-            document.getElementById('btn-onedrive-sync').addEventListener('click', () => syncFromCorporateOneDrive(false));
-            document.getElementById('btn-connect-onedrive-main').addEventListener('click', () => syncFromCorporateOneDrive(false));
-            document.getElementById('btn-onedrive-config').addEventListener('click', openOneDriveModal);
-            document.getElementById('btn-open-od-config-main').addEventListener('click', openOneDriveModal);
-            document.getElementById('btn-close-od-modal').addEventListener('click', closeOneDriveModal);
-            document.getElementById('btn-cancel-od-config').addEventListener('click', closeOneDriveModal);
-
-            document.getElementById('btn-save-and-sync-od').addEventListener('click', () => {
-                const fileUrl = document.getElementById('od-file-url').value.trim();
-                const clientId = document.getElementById('od-client-id').value.trim();
-                const tenantId = document.getElementById('od-tenant-id').value.trim() || '326c2335-66a0-4d53-aa59-0afa0692c5b2';
-                const autoRefreshMinutes = Number(document.getElementById('od-auto-refresh').value || 0);
-
-                if (!fileUrl || !clientId) {
-                    notifyUser('Ingresa tanto la URL del archivo en SharePoint como el Application (Client) ID.', 'warning');
-                    return;
-                }
-
-                saveOneDriveConfig({ fileUrl, clientId, tenantId, autoRefreshMinutes });
-                closeOneDriveModal();
-                syncFromCorporateOneDrive(false);
+            document.getElementById('btn-sync-sharepoint').addEventListener('click', () => {
+                syncFromSharePoint({ interactive: true, silentToast: false });
             });
 
-            if (OneDriveState.config.clientId && OneDriveState.config.fileUrl) {
-                syncFromCorporateOneDrive(true);
-            }
+            document.getElementById('btn-hero-connect-sp').addEventListener('click', () => {
+                syncFromSharePoint({ interactive: true, silentToast: false });
+            });
+
+            document.getElementById('auto-refresh-select').addEventListener('change', (e) => {
+                SharePointConfig.autoRefreshMinutes = Number(e.target.value);
+                startAutoRefreshTimer();
+                const mins = SharePointConfig.autoRefreshMinutes;
+                notifyUser(
+                    mins > 0
+                        ? `Actualización automática configurada cada ${mins} minuto(s).`
+                        : 'Actualización automática pausada (modo manual).',
+                    'info'
+                );
+            });
+
+            document.getElementById('btn-refresh-report').addEventListener('click', handleRefreshReportClick);
 
             fileInput.addEventListener('change', (e) => {
                 if (e.target.files && e.target.files[0]) {
@@ -2335,6 +2297,10 @@
             document.getElementById('btn-export-avi-png').addEventListener('click', () => {
                 exportSectionAsPNG('section-detalle-avi', 'Detalle_AVI_Asesores');
             });
+
+            // Intentar conexión silenciosa automática al abrir si ya inició sesión previamente
+            startAutoRefreshTimer();
+            await syncFromSharePoint({ interactive: false, silentToast: true });
         });
     </script>
 </body>
