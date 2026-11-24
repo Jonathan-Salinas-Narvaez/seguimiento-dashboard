@@ -1,0 +1,1976 @@
+<!DOCTYPE html>
+<html lang="es" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reporte Financiero: SUPERVISOR — Dashboard Captacion, AV/SAV</title>
+
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        };
+    </script>
+
+    <!-- SheetJS (xlsx.full.min.js) para lectura de archivos Excel -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+    <!-- html2canvas para exportación a imagen PNG -->
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            transition: background-color 0.25s ease, color 0.25s ease;
+        }
+        .dash-table th, .dash-table td {
+            border-right: 1.5px solid #cbd5e1;
+        }
+        .dark .dash-table th, .dark .dash-table td {
+            border-right-color: #334155;
+        }
+        .dash-table th:last-child, .dash-table td:last-child {
+            border-right: none;
+        }
+        .dash-table tbody tr {
+            border-bottom: 1.5px solid #cbd5e1;
+        }
+        .dark .dash-table tbody tr {
+            border-bottom-color: #334155;
+        }
+        .tabular-nums {
+            font-variant-numeric: tabular-nums;
+        }
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(148, 163, 184, 0.5);
+            border-radius: 9999px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(100, 116, 139, 0.8);
+        }
+    </style>
+</head>
+<body class="bg-[#f4f6f9] text-slate-800 dark:bg-slate-950 dark:text-slate-100 min-h-screen antialiased selection:bg-blue-600 selection:text-white flex flex-col">
+
+    <!-- Contenedor de Notificaciones Toast -->
+    <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none max-w-sm"></div>
+
+    <!-- BARRA SUPERIOR DE NAVEGACIÓN Y CONTROL -->
+    <header class="sticky top-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+                <div class="bg-[#0b2545] text-white p-2 rounded-lg shadow-sm">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                    </svg>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <span class="font-bold text-sm sm:text-base tracking-tight text-slate-900 dark:text-white">
+                            Seguimiento Online AV, SAV y Tarjetas
+                        </span>
+                        <span id="status-badge" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                            En blanco • Esperando Excel
+                        </span>
+                    </div>
+                    <p id="file-info-text" class="text-xs text-slate-500 dark:text-slate-400">
+                        Hoja objetivo: <strong class="font-semibold text-[#0b2545] dark:text-blue-400">Vendedores Salón</strong>
+                    </p>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2">
+                <button id="btn-refresh-report" type="button" title="Actualizar informe desde el archivo Excel" class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold bg-[#0b2545] hover:bg-[#133863] text-white shadow-sm transition-all active:scale-95">
+                    <svg id="icon-refresh-report" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                    </svg>
+                    <span id="refresh-report-text">Actualizar Informe</span>
+                </button>
+
+                <label for="excel-file-input" title="Cargar o reemplazar archivo Excel" class="cursor-pointer inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold bg-[#0078d4] hover:bg-[#106ebe] text-white shadow-sm transition-all active:scale-95">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+                    </svg>
+                    <span id="upload-btn-text">Cargar Excel</span>
+                    <input type="file" id="excel-file-input" accept=".xlsx,.xls,.csv" class="hidden">
+                </label>
+
+                <button id="btn-export-full-png" type="button" disabled class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed text-white shadow-sm transition-all active:scale-95">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                    </svg>
+                    <span>PNG Reporte</span>
+                </button>
+
+                <button id="btn-theme-toggle" type="button" aria-label="Alternar modo claro y oscuro" class="p-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 transition-colors">
+                    <svg class="w-5 h-5 hidden dark:block text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path>
+                    </svg>
+                    <svg class="w-5 h-5 block dark:hidden text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- ESTADO INICIAL EN BLANCO (CARGA DE EXCEL) -->
+    <section id="empty-state-panel" class="flex-1 flex items-center justify-center px-4 py-10">
+        <div id="dropzone-card" class="max-w-2xl w-full bg-white dark:bg-slate-900 rounded-2xl border-2 border-dashed border-slate-300 dark:border-slate-700 p-8 sm:p-11 text-center shadow-sm transition-all">
+            <div class="mx-auto w-16 h-16 rounded-2xl bg-blue-50 dark:bg-blue-950/60 text-[#0b2545] dark:text-blue-400 flex items-center justify-center mb-5">
+                <svg class="w-9 h-9" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                </svg>
+            </div>
+
+            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-blue-50 text-[#0b2545] dark:bg-blue-950 dark:text-blue-300 border border-blue-200 dark:border-blue-800 mb-3">
+                Archivo Excel • Hoja Vendedores Salón
+            </span>
+
+            <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+                Reporte Financiero: SUPERVISOR
+            </h1>
+            <p class="text-sm font-semibold text-slate-600 dark:text-slate-400 mt-1">
+                Dashboard Captacion, AV/SAV
+            </p>
+
+            <p class="text-sm text-slate-600 dark:text-slate-400 mt-3 max-w-lg mx-auto leading-relaxed">
+                Arrastra y suelta tu archivo Excel <strong class="font-semibold text-slate-800 dark:text-slate-200">(.xlsx, .xls o .csv)</strong> aquí o haz clic en el botón para generar el informe.
+            </p>
+
+            <div id="upload-error-box" class="hidden mt-5 p-4 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 text-left">
+                <p id="upload-error-text" class="text-xs sm:text-sm font-semibold text-rose-700 dark:text-rose-300"></p>
+            </div>
+
+            <div class="mt-6 flex flex-wrap items-center justify-center gap-3">
+                <label for="excel-file-input" class="cursor-pointer inline-flex items-center gap-2 px-6 py-3 rounded-lg text-sm font-bold bg-[#0b2545] hover:bg-[#133863] text-white shadow-sm transition-all active:scale-95">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+                    </svg>
+                    <span>Seleccionar Archivo Excel</span>
+                </label>
+            </div>
+        </div>
+    </section>
+
+    <!-- CONTENIDO PRINCIPAL DEL DASHBOARD -->
+    <main id="dashboard-main-container" class="hidden max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-5 space-y-4 bg-[#f4f6f9] dark:bg-slate-950">
+
+        <!-- 1. BANNER AZUL MARINO SUPERIOR ESTILO REPORTE EJECUTIVO -->
+        <section class="rounded-xl bg-[#0b2545] text-white p-5 sm:p-6 shadow-md border border-[#133863]">
+            <div class="flex flex-col gap-5">
+                <!-- Fila superior del banner: Título a la izquierda y Badges/Corte a la derecha -->
+                <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+                    <div class="space-y-1 min-w-0">
+                        <p class="text-[11px] font-bold uppercase tracking-widest text-blue-200/90">
+                            DASHBOARD CAPTACION, AV/SAV
+                        </p>
+                        <h1 id="header-supervisor-title" class="text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-tight text-white leading-tight">
+                            Reporte Financiero: SUPERVISOR
+                        </h1>
+                        <p id="header-zona-sucursal" class="text-xs sm:text-sm text-blue-100/85 font-medium">
+                            Zona: TODAS | Sucursal: TODAS
+                        </p>
+                    </div>
+
+                    <div class="flex items-center gap-2 flex-wrap shrink-0">
+                        <span id="header-corte-badge" class="inline-flex items-center px-2.5 py-1 rounded bg-white/10 border border-white/20 text-[11px] font-semibold uppercase tracking-wider text-blue-100">
+                            Corte: Actual
+                        </span>
+                        <span id="header-rows-count" class="inline-flex items-center px-2.5 py-1 rounded bg-white/10 border border-white/20 text-[11px] font-semibold uppercase tracking-wider text-blue-100">
+                            0 filas
+                        </span>
+                        <span id="header-subtitle" class="hidden">Dashboard Captacion, AV/SAV</span>
+                    </div>
+                </div>
+
+                <!-- 6 Cuadros horizontales de métricas ordenados -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-3.5">
+                    <div class="bg-[#163661] border border-white/15 rounded-lg py-3 px-3 text-center flex flex-col items-center justify-center min-w-0">
+                        <span class="text-xs font-medium text-blue-100">Total TR Activadas</span>
+                        <span id="header-activadas-tr" class="text-base sm:text-lg xl:text-xl font-extrabold text-white mt-0.5 tabular-nums">0</span>
+                    </div>
+
+                    <div class="bg-[#163661] border border-white/15 rounded-lg py-3 px-3 text-center flex flex-col items-center justify-center min-w-0">
+                        <span class="text-xs font-medium text-blue-100">Ofertas TR</span>
+                        <span id="header-ofertas-tr" class="text-base sm:text-lg xl:text-xl font-extrabold text-white mt-0.5 tabular-nums">0</span>
+                    </div>
+
+                    <div class="bg-[#163661] border border-white/15 rounded-lg py-3 px-3 text-center flex flex-col items-center justify-center min-w-0">
+                        <span class="text-xs font-medium text-blue-100">% Aceptacion</span>
+                        <span id="header-aceptacion-pct" class="text-base sm:text-lg xl:text-xl font-extrabold text-emerald-300 mt-0.5 tabular-nums">0.0%</span>
+                        <span id="header-aceptacion-detail" class="hidden">Aceptadas / Ofertas TR</span>
+                    </div>
+
+                    <div class="bg-[#163661] border border-white/15 rounded-lg py-3 px-3 text-center flex flex-col items-center justify-center min-w-0">
+                        <span class="text-xs font-medium text-blue-100">Ofertas AV/SAV</span>
+                        <span id="header-ofertas-avsav" class="text-base sm:text-lg xl:text-xl font-extrabold text-white mt-0.5 tabular-nums">0</span>
+                    </div>
+
+                    <div class="bg-[#163661] border border-white/15 rounded-lg py-3 px-3 text-center flex flex-col items-center justify-center min-w-0">
+                        <span class="text-xs font-medium text-blue-100">% Efectividad</span>
+                        <span id="header-efectividad-pct" class="text-base sm:text-lg xl:text-xl font-extrabold text-sky-300 mt-0.5 tabular-nums">0.0%</span>
+                    </div>
+
+                    <div class="bg-[#163661] border border-white/15 rounded-lg py-3 px-3 text-center flex flex-col items-center justify-center min-w-0">
+                        <span class="text-xs font-medium text-blue-100">Venta Total AV+SAV</span>
+                        <span id="header-venta-total" class="text-base sm:text-lg xl:text-xl font-extrabold text-white mt-0.5 tabular-nums">$ 0</span>
+                        <span id="header-venta-sub" class="hidden">$ Avances + $ SAV</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 2. FILTROS INTERACTIVOS -->
+        <section class="bg-white dark:bg-slate-900 rounded-lg p-3.5 sm:p-4 border border-slate-200 dark:border-slate-800 shadow-sm">
+            <div id="filters-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end">
+                <div>
+                    <label for="filter-zona" class="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">ZONA</label>
+                    <select id="filter-zona" class="filter-select w-full min-h-[42px] rounded-md border-2 border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-medium text-xs sm:text-sm px-3 py-2 leading-normal focus:outline-none focus:ring-2 focus:ring-[#0b2545]">
+                        <option value="ALL">Todas las Zonas</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label for="filter-sucursal" class="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">SUCURSAL</label>
+                    <select id="filter-sucursal" class="filter-select w-full min-h-[42px] rounded-md border-2 border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-medium text-xs sm:text-sm px-3 py-2 leading-normal focus:outline-none focus:ring-2 focus:ring-[#0b2545]">
+                        <option value="ALL">Todas las Sucursales</option>
+                    </select>
+                </div>
+
+                <div class="relative" id="supervisor-multiselect-wrapper">
+                    <label for="btn-supervisor-dropdown" class="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">SUPERVISOR (MÚLTIPLE)</label>
+                    <button type="button" id="btn-supervisor-dropdown" aria-haspopup="listbox" aria-expanded="false" class="w-full min-h-[42px] rounded-md border-2 border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-medium text-xs sm:text-sm px-3 py-2 leading-normal flex items-center justify-between gap-2 text-left focus:outline-none focus:ring-2 focus:ring-[#0b2545]">
+                        <span id="supervisor-dropdown-label" class="truncate">Todos los Supervisores</span>
+                        <svg class="w-4 h-4 text-slate-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </button>
+                    <div id="supervisor-dropdown-menu" class="hidden absolute left-0 right-0 mt-1 z-30 bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-700 rounded-md shadow-xl max-h-72 flex flex-col overflow-hidden">
+                        <div class="p-2 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/60 flex items-center justify-between gap-1">
+                            <button type="button" id="btn-sup-select-all" class="text-[11px] font-bold text-blue-700 dark:text-blue-400 hover:underline px-1.5 py-0.5">Todos</button>
+                            <button type="button" id="btn-sup-clear-all" class="text-[11px] font-bold text-slate-600 dark:text-slate-400 hover:underline px-1.5 py-0.5">Limpiar</button>
+                        </div>
+                        <div class="p-1.5 border-b border-slate-200 dark:border-slate-700">
+                            <input type="text" id="supervisor-dropdown-search" placeholder="Filtrar supervisor..." class="w-full rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-xs px-2 py-1 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-[#0b2545]">
+                        </div>
+                        <div id="supervisor-options-list" class="overflow-y-auto p-1.5 space-y-0.5 text-xs"></div>
+                    </div>
+                </div>
+
+                <div id="filter-fecha-container" class="hidden">
+                    <label for="filter-fecha" class="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">FECHA / CORTE</label>
+                    <select id="filter-fecha" class="filter-select w-full min-h-[42px] rounded-md border-2 border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-medium text-xs sm:text-sm px-3 py-2 leading-normal focus:outline-none focus:ring-2 focus:ring-[#0b2545]">
+                        <option value="ALL">Todos los Cortes / Fechas</option>
+                    </select>
+                </div>
+
+                <div>
+                    <button id="btn-clear-filters" type="button" class="w-full inline-flex items-center justify-center gap-1.5 rounded-md bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold text-xs sm:text-sm px-3 py-2 border border-slate-300 dark:border-slate-700 transition">
+                        <span>Limpiar Filtros</span>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- 3. 4 TARJETAS KPI CON BORDE SUPERIOR DE COLOR -->
+        <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 items-stretch">
+            <!-- KPI 1 -->
+            <article class="bg-white dark:bg-slate-900 rounded-lg p-3.5 border-2 border-slate-300 dark:border-slate-700 border-t-4 border-t-emerald-600 shadow-sm flex flex-col justify-between min-w-0">
+                <div>
+                    <div class="flex items-center justify-between gap-1">
+                        <span class="text-[10px] font-extrabold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
+                            VENDEDOR CON MEJOR ACEPTACIÓN
+                        </span>
+                        <span id="kpi1-delta" class="hidden"></span>
+                    </div>
+                    <h2 id="kpi1-nombre" class="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white mt-1.5 leading-snug uppercase break-words">-</h2>
+                    <p id="kpi1-supervisor" class="text-[11px] font-semibold text-slate-600 dark:text-slate-300 mt-1 leading-normal break-words" title="">Sup: -</p>
+                </div>
+                <p id="kpi1-context" class="text-[11px] text-slate-500 dark:text-slate-400 mt-2 tabular-nums">Activadas TR: 0 | Acept: 0.0%</p>
+                <span id="kpi1-pct" class="hidden">0.0%</span>
+                <span id="kpi1-cantidad" class="hidden">0</span>
+            </article>
+
+            <!-- KPI 2 -->
+            <article class="bg-white dark:bg-slate-900 rounded-lg p-3.5 border-2 border-slate-300 dark:border-slate-700 border-t-4 border-t-blue-600 shadow-sm flex flex-col justify-between min-w-0">
+                <div>
+                    <div class="flex items-center justify-between gap-1">
+                        <span class="text-[10px] font-extrabold uppercase tracking-wider text-blue-700 dark:text-blue-400">
+                            VENDEDOR CON MAYOR OFERTAS
+                        </span>
+                        <span id="kpi2-delta" class="hidden"></span>
+                    </div>
+                    <h2 id="kpi2-nombre" class="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white mt-1.5 leading-snug uppercase break-words">-</h2>
+                    <p id="kpi2-supervisor" class="text-[11px] font-semibold text-slate-600 dark:text-slate-300 mt-1 leading-normal break-words" title="">Sup: -</p>
+                </div>
+                <p id="kpi2-context" class="text-[11px] text-slate-500 dark:text-slate-400 mt-2 tabular-nums">Ofertas TR: 0 | Acept: 0.0%</p>
+                <span id="kpi2-pct" class="hidden">0.0%</span>
+                <span id="kpi2-cantidad" class="hidden">0</span>
+            </article>
+
+            <!-- KPI 3 -->
+            <article class="bg-white dark:bg-slate-900 rounded-lg p-3.5 border-2 border-slate-300 dark:border-slate-700 border-t-4 border-t-rose-600 shadow-sm flex flex-col justify-between min-w-0">
+                <div>
+                    <div class="flex items-center justify-between gap-1">
+                        <span class="text-[10px] font-extrabold uppercase tracking-wider text-rose-700 dark:text-rose-400">
+                            ACEPTACIÓN MAS BAJA
+                        </span>
+                        <span id="kpi3-delta" class="hidden"></span>
+                    </div>
+                    <h2 id="kpi3-nombre" class="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white mt-1.5 leading-snug uppercase break-words">-</h2>
+                    <p id="kpi3-supervisor" class="text-[11px] font-semibold text-slate-600 dark:text-slate-300 mt-1 leading-normal break-words" title="">Sup: -</p>
+                </div>
+                <p id="kpi3-context" class="text-[11px] text-slate-500 dark:text-slate-400 mt-2 tabular-nums">Activadas TR: 0 | Acept: 0.0%</p>
+                <span id="kpi3-pct" class="hidden">0.0%</span>
+                <span id="kpi3-cantidad" class="hidden">0</span>
+            </article>
+
+            <!-- KPI 4 -->
+            <article class="bg-white dark:bg-slate-900 rounded-lg p-3.5 border-2 border-slate-300 dark:border-slate-700 border-t-4 border-t-amber-500 shadow-sm flex flex-col justify-between min-w-0">
+                <div>
+                    <div class="flex items-center justify-between gap-1">
+                        <span class="text-[10px] font-extrabold uppercase tracking-wider text-amber-700 dark:text-amber-400">
+                            MAYOR ACTIVADAS TR
+                        </span>
+                        <span id="kpi4-delta" class="hidden"></span>
+                    </div>
+                    <h2 id="kpi4-nombre" class="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white mt-1.5 leading-snug uppercase break-words">-</h2>
+                    <p id="kpi4-supervisor" class="text-[11px] font-semibold text-slate-600 dark:text-slate-300 mt-1 leading-normal break-words" title="">Sup: -</p>
+                </div>
+                <p id="kpi4-context" class="text-[11px] text-slate-500 dark:text-slate-400 mt-2 tabular-nums">Activadas TR: 0 | Acept: 0.0%</p>
+                <span id="kpi4-pct" class="hidden">0.0%</span>
+                <span id="kpi4-cantidad" class="hidden">0</span>
+            </article>
+        </section>
+
+        <!-- 3B. RESUMEN POR SUPERVISOR (SOLO AFECTADO POR ZONA Y SUCURSAL) -->
+        <section id="section-detalle-supervisores" class="space-y-2">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <div class="flex items-center gap-2 flex-wrap">
+                    <h2 class="text-sm sm:text-base font-bold text-[#0b2545] dark:text-white">
+                        Resumen por Supervisor
+                    </h2>
+                    <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-blue-50 text-[#0b2545] dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                        Afectado solo por Zona y Sucursal
+                    </span>
+                </div>
+
+                <div class="flex flex-wrap items-center gap-2">
+                    <input type="text" id="sup-table-search-input" placeholder="Buscar supervisor..." class="rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 text-xs px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#0b2545]">
+                    <button id="btn-export-sup-png" type="button" class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-semibold bg-[#0b2545] hover:bg-[#133863] text-white transition">
+                        <span>PNG Tabla</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="bg-white dark:bg-slate-900 rounded-lg border-2 border-slate-300 dark:border-slate-700 shadow-sm overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="dash-table w-full border-collapse">
+                        <thead>
+                            <tr class="bg-[#0b2545] text-white text-xs font-semibold select-none">
+                                <th data-sup-sort="supervisor" class="sup-sortable py-2.5 px-3 text-center cursor-pointer hover:bg-[#133863]">
+                                    Supervisor <span class="sort-indicator text-blue-200">↕</span>
+                                </th>
+                                <th data-sup-sort="ofertasTR" class="sup-sortable py-2.5 px-3 text-center cursor-pointer hover:bg-[#133863]">
+                                    Ofertas TR <span class="sort-indicator">↓</span>
+                                </th>
+                                <th data-sup-sort="activadasTR" class="sup-sortable py-2.5 px-3 text-center cursor-pointer hover:bg-[#133863]">
+                                    Activadas TR <span class="sort-indicator text-blue-200">↕</span>
+                                </th>
+                                <th data-sup-sort="aceptacionPct" class="sup-sortable py-2.5 px-3 text-center cursor-pointer hover:bg-[#133863]">
+                                    Aceptación % <span class="sort-indicator text-blue-200">↕</span>
+                                </th>
+                                <th data-sup-sort="clientesDisponible" class="sup-sortable py-2.5 px-3 text-center cursor-pointer hover:bg-[#133863]">
+                                    # Clientes con Disponible <span class="sort-indicator text-blue-200">↕</span>
+                                </th>
+                                <th data-sup-sort="efectividadPct" class="sup-sortable py-2.5 px-3 text-center cursor-pointer hover:bg-[#133863]">
+                                    % Efect (Av-Sav) <span class="sort-indicator text-blue-200">↕</span>
+                                </th>
+                                <th data-sup-sort="ventaTotal" class="sup-sortable py-2.5 px-3 text-center cursor-pointer hover:bg-[#133863]">
+                                    AV+SAV $ <span class="sort-indicator text-blue-200">↕</span>
+                                </th>
+                                <th data-sup-sort="cantidadTotal" class="sup-sortable py-2.5 px-3 text-center cursor-pointer hover:bg-[#133863]">
+                                    # AV+SAV <span class="sort-indicator text-blue-200">↕</span>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody id="sup-table-tbody" class="text-xs"></tbody>
+                        <tfoot id="sup-table-tfoot" class="bg-slate-50 dark:bg-slate-800/70 border-t-2 border-slate-300 dark:border-slate-700 font-bold text-xs text-slate-900 dark:text-white"></tfoot>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- 4. DETALLE AVI/ASESORES -->
+        <section id="section-detalle-avi" class="space-y-2">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <h2 class="text-sm sm:text-base font-bold text-[#0b2545] dark:text-white">
+                    Detalle AVI/Asesores
+                </h2>
+
+                <div class="flex flex-wrap items-center gap-2">
+                    <input type="text" id="avi-search-input" placeholder="Buscar vendedor o supervisor..." class="rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 text-xs px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#0b2545]">
+                    <select id="avi-page-size" class="rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 text-xs px-2 py-1.5 font-semibold">
+                        <option value="15" selected>15</option>
+                        <option value="30">30</option>
+                        <option value="50">50</option>
+                        <option value="ALL">Todos</option>
+                    </select>
+                    <button id="btn-export-avi-png" type="button" class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-semibold bg-[#0b2545] hover:bg-[#133863] text-white transition">
+                        <span>PNG Tabla</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="bg-white dark:bg-slate-900 rounded-lg border-2 border-slate-300 dark:border-slate-700 shadow-sm overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="dash-table w-full border-collapse">
+                        <thead>
+                            <tr class="bg-[#0b2545] text-white text-xs font-semibold select-none">
+                                <th data-avi-sort="nombre" class="avi-sortable py-2.5 px-3 text-center cursor-pointer hover:bg-[#133863]">
+                                    Vendedor <span class="sort-indicator text-blue-200">↕</span>
+                                </th>
+                                <th data-avi-sort="supervisorText" class="avi-sortable py-2.5 px-3 text-center cursor-pointer hover:bg-[#133863]">
+                                    Supervisor <span class="sort-indicator text-blue-200">↕</span>
+                                </th>
+                                <th data-avi-sort="ofertasTR" class="avi-sortable py-2.5 px-3 text-center cursor-pointer hover:bg-[#133863]">
+                                    Ofertas TR <span class="sort-indicator">↓</span>
+                                </th>
+                                <th data-avi-sort="activadasTR" class="avi-sortable py-2.5 px-3 text-center cursor-pointer hover:bg-[#133863]">
+                                    Activadas TR <span class="sort-indicator text-blue-200">↕</span>
+                                </th>
+                                <th data-avi-sort="aceptacionPct" class="avi-sortable py-2.5 px-3 text-center cursor-pointer hover:bg-[#133863]">
+                                    Aceptación % <span class="sort-indicator text-blue-200">↕</span>
+                                </th>
+                                <th data-avi-sort="clientesDisponible" class="avi-sortable py-2.5 px-3 text-center cursor-pointer hover:bg-[#133863]">
+                                    # Clientes con Disponible <span class="sort-indicator text-blue-200">↕</span>
+                                </th>
+                                <th data-avi-sort="efectividadPct" class="avi-sortable py-2.5 px-3 text-center cursor-pointer hover:bg-[#133863]">
+                                    % Efect (Av-Sav) <span class="sort-indicator text-blue-200">↕</span>
+                                </th>
+                                <th data-avi-sort="ventaTotal" class="avi-sortable py-2.5 px-3 text-center cursor-pointer hover:bg-[#133863]">
+                                    AV+SAV $ <span class="sort-indicator text-blue-200">↕</span>
+                                </th>
+                                <th data-avi-sort="cantidadTotal" class="avi-sortable py-2.5 px-3 text-center cursor-pointer hover:bg-[#133863]">
+                                    # AV+SAV <span class="sort-indicator text-blue-200">↕</span>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody id="avi-table-tbody" class="text-xs"></tbody>
+                        <tfoot id="avi-table-tfoot" class="bg-slate-50 dark:bg-slate-800/70 border-t-2 border-slate-300 dark:border-slate-700 font-bold text-xs text-slate-900 dark:text-white"></tfoot>
+                    </table>
+                </div>
+
+                <div class="px-4 py-2.5 bg-slate-50/70 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-600 dark:text-slate-400">
+                    <div id="avi-pagination-info">Mostrando 0 - 0 de 0 asesores</div>
+                    <div class="flex items-center gap-1.5" id="avi-pagination-controls"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 5. DOS CUADROS TOP 5 INFERIORES -->
+        <section class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div class="bg-white dark:bg-slate-900 rounded-lg p-4 border-2 border-slate-300 dark:border-slate-700 shadow-sm">
+                <h2 class="text-xs sm:text-sm font-bold text-[#0b2545] dark:text-white mb-2">
+                    Top 5: Mayor Ofertas TR y Baja Aceptación
+                </h2>
+                <div id="top5-low-accept-tbody" class="divide-y divide-slate-200 dark:divide-slate-700"></div>
+            </div>
+
+            <div class="bg-white dark:bg-slate-900 rounded-lg p-4 border-2 border-slate-300 dark:border-slate-700 shadow-sm">
+                <h2 class="text-xs sm:text-sm font-bold text-[#0b2545] dark:text-white mb-2">
+                    Top 5: Mayor Activadas TR y Bajas Ofertas TR
+                </h2>
+                <div id="top5-high-activadas-tbody" class="divide-y divide-slate-200 dark:divide-slate-700"></div>
+            </div>
+        </section>
+
+        <footer class="text-center text-xs text-slate-400 dark:text-slate-500 pb-3">
+            Reporte Financiero: SUPERVISOR • Dashboard Captacion, AV/SAV • Archivo: <span id="footer-file-name">-</span>
+        </footer>
+    </main>
+
+<script>
+        const AppState = {
+            records: [],
+            filteredRecords: [],
+            groupedVendors: [],
+            supervisorRows: [],
+            corteLabel: '',
+            hasDateColumn: false,
+            fileName: '',
+            lastLocalBuffer: null,
+            lastLocalFileName: '',
+            filters: {
+                zona: 'ALL',
+                sucursal: 'ALL',
+                supervisores: [],
+                fecha: 'ALL',
+                aviSearch: '',
+                supSearch: ''
+            },
+            supSort: {
+                key: 'ofertasTR',
+                dir: 'desc'
+            },
+            aviSort: {
+                key: 'ofertasTR',
+                dir: 'desc'
+            },
+            aviPagination: {
+                currentPage: 1,
+                pageSize: 15
+            }
+        };
+
+        function formatCLP(value) {
+            const num = Math.round(Number(value) || 0);
+            return `$ ${new Intl.NumberFormat('es-CL', { maximumFractionDigits: 0 }).format(num)}`;
+        }
+
+        function formatInt(value) {
+            const num = Number(value) || 0;
+            return new Intl.NumberFormat('es-CL', { maximumFractionDigits: 0 }).format(num);
+        }
+
+        function formatPct(value) {
+            const num = Number(value) || 0;
+            return `${num.toFixed(1)}%`;
+        }
+
+        function normalizeText(str) {
+            return String(str || '')
+                .trim()
+                .toLowerCase()
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .replace(/\s+/g, ' ');
+        }
+
+        function parseNumberFlexible(val) {
+            if (typeof val === 'number') return Number.isFinite(val) ? val : 0;
+            if (val === null || val === undefined || val === '') return 0;
+
+            let str = String(val).trim();
+            if (str === '-' || str === 'N/A' || str === '#N/A' || str === 'NaN') return 0;
+
+            str = str.replace(/[$%\s]/g, '');
+
+            if (str.includes(',') && str.includes('.')) {
+                if (str.lastIndexOf(',') > str.lastIndexOf('.')) {
+                    str = str.replace(/\./g, '').replace(',', '.');
+                } else {
+                    str = str.replace(/,/g, '');
+                }
+            } else if (str.includes(',')) {
+                const parts = str.split(',');
+                if (parts.length === 2 && parts[1].length <= 4) {
+                    str = str.replace(',', '.');
+                } else {
+                    str = str.replace(/,/g, '');
+                }
+            } else if (str.includes('.')) {
+                const parts = str.split('.');
+                if (parts.length > 2 || (parts.length === 2 && parts[1].length === 3)) {
+                    str = str.replace(/\./g, '');
+                }
+            }
+
+            const num = parseFloat(str);
+            return Number.isFinite(num) ? num : 0;
+        }
+
+        function parsePctCell(val) {
+            if (val === null || val === undefined || val === '') return 0;
+            const rawPctStr = String(val).trim();
+            let valPct = parseNumberFlexible(rawPctStr);
+            if (!rawPctStr.includes('%') && Math.abs(valPct) > 0 && Math.abs(valPct) <= 1) {
+                valPct = valPct * 100;
+            }
+            return valPct;
+        }
+
+        function parseDateCell(val) {
+            if (val === null || val === undefined || val === '') return '';
+            if (typeof val === 'number' && val > 20000 && val < 90000) {
+                const utcDays = Math.floor(val - 25569);
+                const d = new Date(utcDays * 86400 * 1000);
+                return d.toISOString().slice(0, 10);
+            }
+            return String(val).trim();
+        }
+
+        function notifyUser(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            const palette = {
+                success: 'bg-emerald-700 text-white border-emerald-500',
+                error: 'bg-rose-700 text-white border-rose-500',
+                warning: 'bg-amber-700 text-white border-amber-500',
+                info: 'bg-slate-800 text-white border-slate-700'
+            };
+
+            toast.className = `pointer-events-auto px-4 py-3 rounded-xl shadow-lg border text-xs sm:text-sm font-medium transition-all duration-300 translate-y-2 opacity-0 ${palette[type] || palette.info}`;
+            toast.textContent = message;
+            container.appendChild(toast);
+
+            requestAnimationFrame(() => toast.classList.remove('translate-y-2', 'opacity-0'));
+            setTimeout(() => {
+                toast.classList.add('translate-y-2', 'opacity-0');
+                setTimeout(() => toast.remove(), 300);
+            }, 4500);
+        }
+
+        function handleRefreshReportClick() {
+            const btn = document.getElementById('btn-refresh-report');
+            const labelEl = document.getElementById('refresh-report-text');
+            const iconEl = document.getElementById('icon-refresh-report');
+
+            if (btn) btn.disabled = true;
+            if (labelEl) labelEl.textContent = 'Actualizando...';
+            if (iconEl) iconEl.classList.add('animate-spin');
+
+            try {
+                if (AppState.lastLocalBuffer) {
+                    const stamp = new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                    processExcelArrayBuffer(
+                        AppState.lastLocalBuffer,
+                        `${AppState.lastLocalFileName || 'Archivo Excel'} (Actualizado ${stamp})`
+                    );
+                } else {
+                    const fileInput = document.getElementById('excel-file-input');
+                    if (fileInput) fileInput.click();
+                    notifyUser('Selecciona el archivo Excel para cargar o actualizar el informe.', 'info');
+                }
+            } finally {
+                if (btn) btn.disabled = false;
+                if (labelEl) labelEl.textContent = 'Actualizar Informe';
+                if (iconEl) iconEl.classList.remove('animate-spin');
+            }
+        }
+
+        function processExcelArrayBuffer(arrayBuffer, sourceLabel) {
+            const errorBox = document.getElementById('upload-error-box');
+            const errorText = document.getElementById('upload-error-text');
+            if (errorBox) errorBox.classList.add('hidden');
+
+            try {
+                const buffer = new Uint8Array(arrayBuffer);
+                const workbook = XLSX.read(buffer, { type: 'array' });
+
+                let sheetName = workbook.SheetNames.find(
+                    name => normalizeText(name) === 'vendedores salon'
+                );
+
+                if (!sheetName && sourceLabel.toLowerCase().includes('.csv') && workbook.SheetNames.length === 1) {
+                    sheetName = workbook.SheetNames[0];
+                }
+
+                if (!sheetName) {
+                    const msg = `No se encontró la hoja "Vendedores Salón". Hojas disponibles: [${workbook.SheetNames.join(', ')}]`;
+                    if (errorText && errorBox) {
+                        errorText.textContent = msg;
+                        errorBox.classList.remove('hidden');
+                    }
+                    notifyUser(msg, 'error');
+                    return;
+                }
+
+                const worksheet = workbook.Sheets[sheetName];
+                const matrix = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+
+                if (!matrix || matrix.length === 0) {
+                    const msg = `La hoja "${sheetName}" está vacía.`;
+                    if (errorText && errorBox) {
+                        errorText.textContent = msg;
+                        errorBox.classList.remove('hidden');
+                    }
+                    notifyUser(msg, 'warning');
+                    return;
+                }
+
+                let corteFromCell = '';
+                if (matrix[3] && matrix[3][1]) {
+                    const b4Val = String(matrix[3][1]).trim();
+                    if (b4Val && !normalizeText(b4Val).startsWith('zona')) {
+                        corteFromCell = b4Val;
+                    }
+                }
+
+                let headerRowIndex = -1;
+                let bestScore = 0;
+                const keyHeaderTokens = ['nombre', 'zona', 'sucursal', 'supervisor', 'ofertas tr', 'activadas tr', '# avances', '$ avances'];
+
+                const scanLimit = Math.min(matrix.length, 25);
+                for (let r = 0; r < scanLimit; r++) {
+                    const rowCells = matrix[r] || [];
+                    const normCells = rowCells.map(c => normalizeText(c));
+                    let score = 0;
+                    for (const token of keyHeaderTokens) {
+                        if (normCells.some(cell => cell === token || cell.startsWith(token))) {
+                            score++;
+                        }
+                    }
+                    if (score > bestScore && score >= 3) {
+                        bestScore = score;
+                        headerRowIndex = r;
+                    }
+                }
+
+                if (headerRowIndex === -1) {
+                    const msg = `No se pudo detectar la fila de encabezados en la hoja "${sheetName}".`;
+                    if (errorText && errorBox) {
+                        errorText.textContent = msg;
+                        errorBox.classList.remove('hidden');
+                    }
+                    notifyUser(msg, 'error');
+                    return;
+                }
+
+                const headers = matrix[headerRowIndex].map(h => normalizeText(h));
+                const dataRows = matrix.slice(headerRowIndex + 1);
+
+                const { parsedRecords, hasDateCol, uniqueDates } = extractValidRecords(dataRows, headers, corteFromCell);
+
+                if (parsedRecords.length === 0) {
+                    const msg = `Se detectaron encabezados en la fila ${headerRowIndex + 1}, pero no se encontraron filas válidas.`;
+                    if (errorText && errorBox) {
+                        errorText.textContent = msg;
+                        errorBox.classList.remove('hidden');
+                    }
+                    notifyUser(msg, 'warning');
+                    return;
+                }
+
+                const wasAlreadyLoaded = AppState.records.length > 0;
+                const prevFilters = { ...AppState.filters };
+
+                AppState.records = parsedRecords;
+                AppState.hasDateColumn = hasDateCol;
+                AppState.corteLabel = corteFromCell || (uniqueDates.length === 1 ? uniqueDates[0] : (uniqueDates.length > 1 ? `${uniqueDates[0]} a ${uniqueDates[uniqueDates.length - 1]}` : ''));
+                AppState.fileName = sourceLabel;
+
+                activateDashboard(sheetName, headerRowIndex + 1, parsedRecords.length);
+                if (wasAlreadyLoaded) {
+                    AppState.filters = prevFilters;
+                    populateFilters();
+                    refreshDashboard();
+                } else {
+                    resetAllFilters();
+                }
+                notifyUser(`Informe actualizado: ${parsedRecords.length} registros desde "${sheetName}".`, 'success');
+            } catch (err) {
+                console.error('Error crítico al leer Excel:', err);
+                const msg = `Error al procesar el archivo Excel: ${err.message || 'formato no válido'}.`;
+                if (errorText && errorBox) {
+                    errorText.textContent = msg;
+                    errorBox.classList.remove('hidden');
+                }
+                notifyUser(msg, 'error');
+            }
+        }
+
+        function processExcelFile(file) {
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function (evt) {
+                AppState.lastLocalBuffer = evt.target.result;
+                AppState.lastLocalFileName = file.name;
+                processExcelArrayBuffer(evt.target.result, file.name);
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function extractValidRecords(dataRows, headers, corteFromCell) {
+            const findColIndex = (candidates) => {
+                for (const cand of candidates) {
+                    const idx = headers.findIndex(h => h === cand);
+                    if (idx !== -1) return idx;
+                }
+                for (const cand of candidates) {
+                    const idx = headers.findIndex(h => h.startsWith(cand));
+                    if (idx !== -1) return idx;
+                }
+                return -1;
+            };
+
+            const idxZona = findColIndex(['zona', 'region']);
+            const idxSucursal = findColIndex(['sucursal', 'tienda', 'local']);
+            const idxSupervisor = findColIndex(['supervisor', 'jefe', 'lider']);
+            const idxCajero = findColIndex(['cajero', 'rut cajero', 'cod cajero', 'codigo cajero']);
+            const idxNombre = findColIndex(['nombre', 'vendedor', 'asesor', 'ejecutivo']);
+            const idxFecha = findColIndex(['fecha', 'periodo', 'corte', 'dia']);
+
+            const idxNumAvances = findColIndex(['# avances', 'q avances', 'n avances', 'cantidad avances']);
+            const idxNumSAV = findColIndex(['# sav', 'q sav', 'n sav', 'cantidad sav']);
+            const idxMontoAvances = findColIndex(['$ avances', 'monto avances', 'venta avances']);
+            const idxMontoSAV = findColIndex(['$ sav', 'monto sav', 'venta sav']);
+
+            const idxOfertasTR = findColIndex(['total ofertas tr', 'ofertas tr', 'q ofertas tr']);
+            const idxAceptadasTR = findColIndex(['of. aceptadas tr', 'of aceptadas tr', 'aceptadas ofertas tr', 'ofertas aceptadas tr']);
+            const idxAceptPct = findColIndex(['% aceptacion tr.', '% aceptacion tr', 'acept %', '% aceptacion']);
+            const idxActivadasTR = findColIndex(['activadas tr', 'tr activadas', 'q activadas tr']);
+
+            const idxClientesDisponible = findColIndex([
+                '# clientes con disponible',
+                'clientes con disponible',
+                'q clientes con disponible',
+                'n clientes con disponible',
+                'clientes disponible',
+                'ofertas av/sav',
+                'ofertas av sav'
+            ]);
+            const idxEfectividadPct = findColIndex([
+                '% efect (av-sav)',
+                '% efect(av-sav)',
+                '% efectividad av-sav',
+                '% efectividad (av-sav)',
+                '% efect av/sav',
+                'efect (av-sav)',
+                '% efectividad'
+            ]);
+
+            let hasDateCol = false;
+            const dateSet = new Set();
+            const parsedRecords = [];
+
+            for (let i = 0; i < dataRows.length; i++) {
+                const row = dataRows[i];
+                if (!Array.isArray(row) || row.every(cell => String(cell || '').trim() === '')) {
+                    continue;
+                }
+
+                const rawNombreCell = idxNombre !== -1 ? row[idxNombre] : '';
+                const rawNombreStr = String(rawNombreCell ?? '').trim();
+                const normNombre = normalizeText(rawNombreStr);
+
+                const cajeroStr = idxCajero !== -1 ? String(row[idxCajero] ?? '').trim() : '';
+
+                if (
+                    rawNombreCell === null ||
+                    rawNombreCell === undefined ||
+                    rawNombreStr === '' ||
+                    normNombre === 'nan' ||
+                    normNombre === 'null' ||
+                    normNombre.startsWith('total ') ||
+                    normNombre === 'total'
+                ) {
+                    continue;
+                }
+
+                let displayNombre = rawNombreStr;
+                if (normNombre === '(en blanco)' || normNombre === 'en blanco' || normNombre === 'sin nombre') {
+                    displayNombre = cajeroStr
+                        ? `(Sin nombre / Cajero ${cajeroStr})`
+                        : `(Sin nombre / Registro ${i + 1})`;
+                }
+
+                const zona = idxZona !== -1 && String(row[idxZona] ?? '').trim() !== ''
+                    ? String(row[idxZona]).trim().toUpperCase()
+                    : 'SIN ZONA';
+
+                const sucursal = idxSucursal !== -1 && String(row[idxSucursal] ?? '').trim() !== ''
+                    ? String(row[idxSucursal]).trim().toUpperCase()
+                    : 'SIN SUCURSAL';
+
+                if (normalizeText(zona).startsWith('total ')) {
+                    continue;
+                }
+
+                const rawSupervisorStr = idxSupervisor !== -1 ? String(row[idxSupervisor] ?? '').trim() : '';
+                const normSupervisor = normalizeText(rawSupervisorStr);
+
+                if (normSupervisor.startsWith('total ') || normSupervisor === 'total') {
+                    continue;
+                }
+
+                const isBlankSupervisor =
+                    rawSupervisorStr === '' ||
+                    normSupervisor === '(en blanco)' ||
+                    normSupervisor === 'en blanco' ||
+                    normSupervisor === 'sin supervisor' ||
+                    normSupervisor === 'nan' ||
+                    normSupervisor === 'null' ||
+                    normSupervisor === '-';
+
+                const supervisor = isBlankSupervisor
+                    ? 'SIN SUPERVISOR'
+                    : rawSupervisorStr.toUpperCase();
+
+                let fechaVal = '';
+                if (idxFecha !== -1) {
+                    fechaVal = parseDateCell(row[idxFecha]);
+                    if (fechaVal) {
+                        hasDateCol = true;
+                        dateSet.add(fechaVal);
+                    }
+                }
+                if (!fechaVal && corteFromCell) {
+                    fechaVal = corteFromCell;
+                    dateSet.add(fechaVal);
+                }
+
+                const numAvances = idxNumAvances !== -1 ? parseNumberFlexible(row[idxNumAvances]) : 0;
+                const numSAV = idxNumSAV !== -1 ? parseNumberFlexible(row[idxNumSAV]) : 0;
+                const montoAvances = idxMontoAvances !== -1 ? parseNumberFlexible(row[idxMontoAvances]) : 0;
+                const montoSAV = idxMontoSAV !== -1 ? parseNumberFlexible(row[idxMontoSAV]) : 0;
+                const ofertasTR = idxOfertasTR !== -1 ? parseNumberFlexible(row[idxOfertasTR]) : 0;
+                const aceptadasTR = idxAceptadasTR !== -1 ? parseNumberFlexible(row[idxAceptadasTR]) : 0;
+                const activadasTR = idxActivadasTR !== -1 ? parseNumberFlexible(row[idxActivadasTR]) : 0;
+                const clientesDisponible = idxClientesDisponible !== -1 ? parseNumberFlexible(row[idxClientesDisponible]) : 0;
+
+                let aceptPct = 0;
+                if (idxAceptPct !== -1 && row[idxAceptPct] !== '' && row[idxAceptPct] !== null && row[idxAceptPct] !== undefined) {
+                    aceptPct = parsePctCell(row[idxAceptPct]);
+                } else if (ofertasTR > 0 && aceptadasTR > 0) {
+                    aceptPct = (aceptadasTR / ofertasTR) * 100;
+                } else if (ofertasTR > 0 && activadasTR > 0) {
+                    aceptPct = (activadasTR / ofertasTR) * 100;
+                }
+
+                const ventaTotal = montoAvances + montoSAV;
+                const cantidadTotal = numSAV + numAvances;
+
+                let efectividadPct = 0;
+                if (idxEfectividadPct !== -1 && row[idxEfectividadPct] !== '' && row[idxEfectividadPct] !== null && row[idxEfectividadPct] !== undefined) {
+                    efectividadPct = parsePctCell(row[idxEfectividadPct]);
+                } else if (clientesDisponible > 0 && cantidadTotal > 0) {
+                    efectividadPct = (cantidadTotal / clientesDisponible) * 100;
+                }
+
+                parsedRecords.push({
+                    nombre: displayNombre,
+                    cajero: cajeroStr || '-',
+                    zona,
+                    sucursal,
+                    supervisor,
+                    fecha: fechaVal,
+                    numAvances,
+                    numSAV,
+                    montoAvances,
+                    montoSAV,
+                    ofertasTR,
+                    aceptadasTR,
+                    activadasTR,
+                    aceptPct,
+                    clientesDisponible,
+                    efectividadPct,
+                    ventaTotal,
+                    cantidadTotal
+                });
+            }
+
+            return {
+                parsedRecords,
+                hasDateCol,
+                uniqueDates: Array.from(dateSet)
+            };
+        }
+
+        function activateDashboard(sheetName, headerRowNum, recordCount) {
+            document.getElementById('empty-state-panel').classList.add('hidden');
+            document.getElementById('dashboard-main-container').classList.remove('hidden');
+
+            const badge = document.getElementById('status-badge');
+            badge.textContent = 'Excel Cargado';
+            badge.className = 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800';
+
+            document.getElementById('file-info-text').innerHTML =
+                `Archivo: <strong class="font-semibold text-slate-800 dark:text-slate-200">${AppState.fileName}</strong> • Hoja: <strong class="font-semibold text-blue-700 dark:text-blue-400">${sheetName}</strong> (Encabezados fila ${headerRowNum})`;
+            document.getElementById('btn-export-full-png').disabled = false;
+            document.getElementById('footer-file-name').textContent = `${AppState.fileName} (${recordCount} filas válidas)`;
+
+            const fechaContainer = document.getElementById('filter-fecha-container');
+            const filtersGrid = document.getElementById('filters-grid');
+            const uniqueDates = [...new Set(AppState.records.map(r => r.fecha).filter(Boolean))];
+
+            if (AppState.hasDateColumn || uniqueDates.length > 1) {
+                fechaContainer.classList.remove('hidden');
+                filtersGrid.className = 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4 items-end';
+            } else {
+                fechaContainer.classList.add('hidden');
+                filtersGrid.className = 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 items-end';
+            }
+        }
+
+        function sortSupervisorList(list) {
+            return [...list].sort((a, b) => {
+                if (a === 'SIN SUPERVISOR') return 1;
+                if (b === 'SIN SUPERVISOR') return -1;
+                return a.localeCompare(b);
+            });
+        }
+
+        function updateSupervisorDropdownLabel(availableSupervisors) {
+            const labelEl = document.getElementById('supervisor-dropdown-label');
+            const selected = AppState.filters.supervisores;
+            if (!labelEl) return;
+
+            if (!selected || selected.length === 0 || selected.length === availableSupervisors.length) {
+                labelEl.textContent = 'Todos los Supervisores';
+            } else if (selected.length === 1) {
+                labelEl.textContent = selected[0];
+            } else {
+                labelEl.textContent = `${selected.length} supervisores seleccionados`;
+            }
+        }
+
+        function renderSupervisorOptions(availableSupervisors) {
+            const listContainer = document.getElementById('supervisor-options-list');
+            const searchInput = document.getElementById('supervisor-dropdown-search');
+            const filterText = normalizeText(searchInput ? searchInput.value : '');
+            if (!listContainer) return;
+
+            const filteredSups = availableSupervisors.filter(sp =>
+                !filterText || normalizeText(sp).includes(filterText)
+            );
+
+            if (filteredSups.length === 0) {
+                listContainer.innerHTML = `<div class="py-3 text-center text-slate-400">Sin coincidencias</div>`;
+                return;
+            }
+
+            listContainer.innerHTML = filteredSups.map(sp => {
+                const checked = AppState.filters.supervisores.includes(sp) ? 'checked' : '';
+                const isSinSup = sp === 'SIN SUPERVISOR';
+                return `
+                    <label class="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-700/70 cursor-pointer select-none ${isSinSup ? 'font-bold text-amber-800 dark:text-amber-300 border-t border-slate-100 dark:border-slate-700 mt-1 pt-1.5' : 'text-slate-800 dark:text-slate-100'}">
+                        <input type="checkbox" value="${sp.replace(/"/g, '&quot;')}" class="sup-option-checkbox rounded border-slate-300 text-[#0b2545] focus:ring-[#0b2545]" ${checked}>
+                        <span class="truncate">${sp}</span>
+                    </label>
+                `;
+            }).join('');
+        }
+
+        function populateFilters() {
+            const zonaSel = document.getElementById('filter-zona');
+            const sucSel = document.getElementById('filter-sucursal');
+            const fechaSel = document.getElementById('filter-fecha');
+
+            const currentZona = AppState.filters.zona;
+            const currentSuc = AppState.filters.sucursal;
+            const currentFecha = AppState.filters.fecha;
+
+            const zonas = [...new Set(AppState.records.map(r => r.zona))].sort();
+            zonaSel.innerHTML = '<option value="ALL">Todas las Zonas</option>' +
+                zonas.map(z => `<option value="${z}">${z}</option>`).join('');
+            zonaSel.value = zonas.includes(currentZona) ? currentZona : 'ALL';
+
+            const byZona = AppState.records.filter(r => zonaSel.value === 'ALL' || r.zona === zonaSel.value);
+            const sucursales = [...new Set(byZona.map(r => r.sucursal))].sort();
+            sucSel.innerHTML = '<option value="ALL">Todas las Sucursales</option>' +
+                sucursales.map(s => `<option value="${s}">${s}</option>`).join('');
+            sucSel.value = sucursales.includes(currentSuc) ? currentSuc : 'ALL';
+
+            const bySuc = byZona.filter(r => sucSel.value === 'ALL' || r.sucursal === sucSel.value);
+            const supervisores = sortSupervisorList([...new Set(bySuc.map(r => r.supervisor))]);
+
+            AppState.filters.supervisores = AppState.filters.supervisores.filter(sp => supervisores.includes(sp));
+            renderSupervisorOptions(supervisores);
+            updateSupervisorDropdownLabel(supervisores);
+
+            const fechas = [...new Set(AppState.records.map(r => r.fecha).filter(Boolean))].sort();
+            fechaSel.innerHTML = '<option value="ALL">Todos los Cortes / Fechas</option>' +
+                fechas.map(f => `<option value="${f}">${f}</option>`).join('');
+            fechaSel.value = fechas.includes(currentFecha) ? currentFecha : 'ALL';
+
+            AppState.filters.zona = zonaSel.value;
+            AppState.filters.sucursal = sucSel.value;
+            AppState.filters.fecha = fechaSel.value;
+        }
+
+        function buildGroupedVendors(rows) {
+            const map = new Map();
+
+            for (const r of rows) {
+                const key = r.nombre;
+                if (!map.has(key)) {
+                    map.set(key, {
+                        nombre: r.nombre,
+                        sucursales: new Set([r.sucursal]),
+                        supervisores: new Set([r.supervisor]),
+                        ofertasTR: 0,
+                        aceptadasTR: 0,
+                        activadasTR: 0,
+                        clientesDisponible: 0,
+                        ventaTotal: 0,
+                        cantidadTotal: 0,
+                        pctSum: 0,
+                        efectPctSum: 0,
+                        rowCount: 0
+                    });
+                }
+
+                const entry = map.get(key);
+                entry.sucursales.add(r.sucursal);
+                entry.supervisores.add(r.supervisor);
+                entry.ofertasTR += r.ofertasTR;
+                entry.aceptadasTR += r.aceptadasTR;
+                entry.activadasTR += r.activadasTR;
+                entry.clientesDisponible += r.clientesDisponible;
+                entry.ventaTotal += r.ventaTotal;
+                entry.cantidadTotal += r.cantidadTotal;
+                entry.pctSum += r.aceptPct;
+                entry.efectPctSum += r.efectividadPct;
+                entry.rowCount += 1;
+            }
+
+            return Array.from(map.values()).map(item => {
+                let aceptacionPct = 0;
+                if (item.aceptadasTR > 0 && item.ofertasTR > 0) {
+                    aceptacionPct = (item.aceptadasTR / item.ofertasTR) * 100;
+                } else if (item.pctSum > 0 && item.rowCount > 0) {
+                    aceptacionPct = item.pctSum / item.rowCount;
+                } else if (item.ofertasTR > 0 && item.activadasTR > 0) {
+                    aceptacionPct = (item.activadasTR / item.ofertasTR) * 100;
+                }
+
+                let efectividadPct = 0;
+                if (item.efectPctSum > 0 && item.rowCount > 0) {
+                    efectividadPct = item.efectPctSum / item.rowCount;
+                } else if (item.clientesDisponible > 0 && item.cantidadTotal > 0) {
+                    efectividadPct = (item.cantidadTotal / item.clientesDisponible) * 100;
+                }
+
+                return {
+                    nombre: item.nombre,
+                    sucursalText: Array.from(item.sucursales).join(', '),
+                    supervisorText: Array.from(item.supervisores).join(', '),
+                    ofertasTR: item.ofertasTR,
+                    aceptadasTR: item.aceptadasTR,
+                    activadasTR: item.activadasTR,
+                    aceptacionPct,
+                    clientesDisponible: item.clientesDisponible,
+                    efectividadPct,
+                    ventaTotal: item.ventaTotal,
+                    cantidadTotal: item.cantidadTotal
+                };
+            });
+        }
+
+        function buildSupervisorSummary(rows) {
+            const map = new Map();
+
+            for (const r of rows) {
+                const key = r.supervisor;
+                if (!map.has(key)) {
+                    map.set(key, {
+                        supervisor: r.supervisor,
+                        ofertasTR: 0,
+                        aceptadasTR: 0,
+                        activadasTR: 0,
+                        clientesDisponible: 0,
+                        ventaTotal: 0,
+                        cantidadTotal: 0,
+                        pctSum: 0,
+                        efectPctSum: 0,
+                        rowCount: 0
+                    });
+                }
+
+                const entry = map.get(key);
+                entry.ofertasTR += r.ofertasTR;
+                entry.aceptadasTR += r.aceptadasTR;
+                entry.activadasTR += r.activadasTR;
+                entry.clientesDisponible += r.clientesDisponible;
+                entry.ventaTotal += r.ventaTotal;
+                entry.cantidadTotal += r.cantidadTotal;
+                entry.pctSum += r.aceptPct;
+                entry.efectPctSum += r.efectividadPct;
+                entry.rowCount += 1;
+            }
+
+            return Array.from(map.values()).map(item => {
+                let aceptacionPct = 0;
+                if (item.aceptadasTR > 0 && item.ofertasTR > 0) {
+                    aceptacionPct = (item.aceptadasTR / item.ofertasTR) * 100;
+                } else if (item.pctSum > 0 && item.rowCount > 0) {
+                    aceptacionPct = item.pctSum / item.rowCount;
+                } else if (item.ofertasTR > 0 && item.activadasTR > 0) {
+                    aceptacionPct = (item.activadasTR / item.ofertasTR) * 100;
+                }
+
+                let efectividadPct = 0;
+                if (item.efectPctSum > 0 && item.rowCount > 0) {
+                    efectividadPct = item.efectPctSum / item.rowCount;
+                } else if (item.clientesDisponible > 0 && item.cantidadTotal > 0) {
+                    efectividadPct = (item.cantidadTotal / item.clientesDisponible) * 100;
+                }
+
+                return {
+                    supervisor: item.supervisor,
+                    ofertasTR: item.ofertasTR,
+                    aceptadasTR: item.aceptadasTR,
+                    activadasTR: item.activadasTR,
+                    aceptacionPct,
+                    clientesDisponible: item.clientesDisponible,
+                    efectividadPct,
+                    ventaTotal: item.ventaTotal,
+                    cantidadTotal: item.cantidadTotal
+                };
+            });
+        }
+
+        function refreshDashboard() {
+            const { zona, sucursal, supervisores, fecha } = AppState.filters;
+
+            const zonaSucursalRecords = AppState.records.filter(row => {
+                const okZona = zona === 'ALL' || row.zona === zona;
+                const okSuc = sucursal === 'ALL' || row.sucursal === sucursal;
+                return okZona && okSuc;
+            });
+
+            AppState.supervisorRows = buildSupervisorSummary(zonaSucursalRecords);
+
+            AppState.filteredRecords = zonaSucursalRecords.filter(row => {
+                const okSup = !supervisores || supervisores.length === 0 || supervisores.includes(row.supervisor);
+                const okFecha = fecha === 'ALL' || row.fecha === fecha;
+                return okSup && okFecha;
+            });
+
+            AppState.groupedVendors = buildGroupedVendors(AppState.filteredRecords);
+            AppState.aviPagination.currentPage = 1;
+
+            renderHeader();
+            renderKPICards();
+            renderSupervisorTable();
+            renderDetalleAVITable();
+            renderTop5Sections();
+        }
+
+        function resetAllFilters() {
+            AppState.filters = {
+                zona: 'ALL',
+                sucursal: 'ALL',
+                supervisores: [],
+                fecha: 'ALL',
+                aviSearch: '',
+                supSearch: ''
+            };
+            const aviSearch = document.getElementById('avi-search-input');
+            const supSearch = document.getElementById('sup-table-search-input');
+            const ddSearch = document.getElementById('supervisor-dropdown-search');
+            if (aviSearch) aviSearch.value = '';
+            if (supSearch) supSearch.value = '';
+            if (ddSearch) ddSearch.value = '';
+
+            populateFilters();
+            refreshDashboard();
+        }
+
+        function renderHeader() {
+            const rows = AppState.filteredRecords;
+            const selectedSups = AppState.filters.supervisores;
+
+            let titleText = 'Reporte Financiero: SUPERVISOR';
+            if (selectedSups && selectedSups.length === 1) {
+                titleText = `Reporte Financiero: SUPERVISOR — ${selectedSups[0]}`;
+            } else if (selectedSups && selectedSups.length > 1) {
+                titleText = `Reporte Financiero: SUPERVISOR — ${selectedSups.length} Seleccionados`;
+            } else {
+                const uniqueSups = [...new Set(rows.map(r => r.supervisor))];
+                if (uniqueSups.length === 1) {
+                    titleText = `Reporte Financiero: SUPERVISOR — ${uniqueSups[0]}`;
+                }
+            }
+
+            document.getElementById('header-supervisor-title').textContent = titleText;
+
+            const zonaTxt = AppState.filters.zona !== 'ALL'
+                ? AppState.filters.zona
+                : ([...new Set(rows.map(r => r.zona))].length === 1 ? [...new Set(rows.map(r => r.zona))][0] : 'TODAS');
+            const sucTxt = AppState.filters.sucursal !== 'ALL'
+                ? AppState.filters.sucursal
+                : ([...new Set(rows.map(r => r.sucursal))].length === 1 ? [...new Set(rows.map(r => r.sucursal))][0] : 'TODAS');
+            const zsEl = document.getElementById('header-zona-sucursal');
+            if (zsEl) {
+                zsEl.textContent = `Zona: ${zonaTxt} | Sucursal: ${sucTxt}`;
+            }
+
+            const corteText = AppState.filters.fecha !== 'ALL'
+                ? `Corte: ${AppState.filters.fecha}`
+                : (AppState.corteLabel ? `Corte: ${AppState.corteLabel}` : 'Corte: Actual');
+
+            document.getElementById('header-corte-badge').textContent = corteText;
+            document.getElementById('header-rows-count').textContent = `${formatInt(rows.length)} filas`;
+            document.getElementById('header-subtitle').textContent =
+                AppState.corteLabel
+                    ? `Dashboard Captacion, AV/SAV • ${AppState.corteLabel}`
+                    : 'Dashboard Captacion, AV/SAV';
+
+            const activadasTR = rows.reduce((sum, r) => sum + r.activadasTR, 0);
+            const ofertasTR = rows.reduce((sum, r) => sum + r.ofertasTR, 0);
+            const aceptadasTR = rows.reduce((sum, r) => sum + r.aceptadasTR, 0);
+            const ofertasAVSAV = rows.reduce((sum, r) => sum + r.clientesDisponible, 0);
+            const ventaTotal = rows.reduce((sum, r) => sum + r.ventaTotal, 0);
+
+            let pctAceptacion = 0;
+            let detailPct = 'Promedio % Aceptacion TR.';
+            if (aceptadasTR > 0 && ofertasTR > 0) {
+                pctAceptacion = (aceptadasTR / ofertasTR) * 100;
+                detailPct = `${formatInt(aceptadasTR)} Acept. / ${formatInt(ofertasTR)} Ofertas`;
+            } else if (rows.length > 0) {
+                pctAceptacion = rows.reduce((sum, r) => sum + r.aceptPct, 0) / rows.length;
+                detailPct = 'Promedio columna % Aceptacion TR.';
+            }
+
+            const pctEfectividad = rows.length > 0
+                ? rows.reduce((sum, r) => sum + r.efectividadPct, 0) / rows.length
+                : 0;
+
+            document.getElementById('header-activadas-tr').textContent = formatInt(activadasTR);
+            document.getElementById('header-ofertas-tr').textContent = formatInt(ofertasTR);
+            document.getElementById('header-aceptacion-pct').textContent = formatPct(pctAceptacion);
+            document.getElementById('header-aceptacion-detail').textContent = detailPct;
+            document.getElementById('header-ofertas-avsav').textContent = formatInt(ofertasAVSAV);
+            document.getElementById('header-efectividad-pct').textContent = formatPct(pctEfectividad);
+            document.getElementById('header-venta-total').textContent = formatCLP(ventaTotal);
+        }
+
+        function renderKPICards() {
+            const pool = AppState.groupedVendors;
+
+            if (!pool || pool.length === 0) {
+                ['kpi1', 'kpi2', 'kpi3', 'kpi4'].forEach(prefix => {
+                    document.getElementById(`${prefix}-nombre`).textContent = 'Sin datos en filtro';
+                    const supEl = document.getElementById(`${prefix}-supervisor`);
+                    if (supEl) supEl.textContent = 'Sup: -';
+                    document.getElementById(`${prefix}-pct`).textContent = '0.0%';
+                    document.getElementById(`${prefix}-cantidad`).textContent = '0';
+                    document.getElementById(`${prefix}-delta`).textContent = '-';
+                });
+                return;
+            }
+
+            const avgPctGroup = pool.reduce((s, v) => s + v.aceptacionPct, 0) / pool.length;
+            const totalOfertasGroup = pool.reduce((s, v) => s + v.ofertasTR, 0);
+            const totalActivadasGroup = pool.reduce((s, v) => s + v.activadasTR, 0);
+
+            const bestAccept = [...pool].sort((a, b) => {
+                if (Math.abs(b.aceptacionPct - a.aceptacionPct) > 0.0001) return b.aceptacionPct - a.aceptacionPct;
+                return b.activadasTR - a.activadasTR;
+            })[0];
+
+            const diff1 = bestAccept.aceptacionPct - avgPctGroup;
+            document.getElementById('kpi1-nombre').textContent = bestAccept.nombre;
+            document.getElementById('kpi1-supervisor').textContent = `Sup: ${bestAccept.supervisorText}`;
+            document.getElementById('kpi1-supervisor').title = bestAccept.supervisorText;
+            document.getElementById('kpi1-pct').textContent = formatPct(bestAccept.aceptacionPct);
+            document.getElementById('kpi1-cantidad').textContent = `${formatInt(bestAccept.activadasTR)} Act. / ${formatInt(bestAccept.ofertasTR)} Of.`;
+            document.getElementById('kpi1-delta').textContent = `${diff1 >= 0 ? '+' : ''}${diff1.toFixed(1)}% vs prom`;
+            document.getElementById('kpi1-context').textContent = `Activadas TR: ${formatInt(bestAccept.activadasTR)} | Acept: ${formatPct(bestAccept.aceptacionPct)}`;
+
+            const mostOffers = [...pool].sort((a, b) => {
+                if (b.ofertasTR !== a.ofertasTR) return b.ofertasTR - a.ofertasTR;
+                return a.activadasTR - b.activadasTR;
+            })[0];
+
+            const shareOffers = totalOfertasGroup > 0 ? (mostOffers.ofertasTR / totalOfertasGroup) * 100 : 0;
+            document.getElementById('kpi2-nombre').textContent = mostOffers.nombre;
+            document.getElementById('kpi2-supervisor').textContent = `Sup: ${mostOffers.supervisorText}`;
+            document.getElementById('kpi2-supervisor').title = mostOffers.supervisorText;
+            document.getElementById('kpi2-cantidad').textContent = `${formatInt(mostOffers.ofertasTR)} Ofertas`;
+            document.getElementById('kpi2-pct').textContent = formatPct(mostOffers.aceptacionPct);
+            document.getElementById('kpi2-delta').textContent = `${shareOffers.toFixed(1)}% del total`;
+            document.getElementById('kpi2-context').textContent = `Ofertas TR: ${formatInt(mostOffers.ofertasTR)} | Acept: ${formatPct(mostOffers.aceptacionPct)}`;
+
+            const lowestAccept = [...pool].sort((a, b) => {
+                if (Math.abs(a.aceptacionPct - b.aceptacionPct) > 0.0001) return a.aceptacionPct - b.aceptacionPct;
+                return a.activadasTR - b.activadasTR;
+            })[0];
+
+            const diff3 = lowestAccept.aceptacionPct - avgPctGroup;
+            document.getElementById('kpi3-nombre').textContent = lowestAccept.nombre;
+            document.getElementById('kpi3-supervisor').textContent = `Sup: ${lowestAccept.supervisorText}`;
+            document.getElementById('kpi3-supervisor').title = lowestAccept.supervisorText;
+            document.getElementById('kpi3-pct').textContent = formatPct(lowestAccept.aceptacionPct);
+            document.getElementById('kpi3-cantidad').textContent = `${formatInt(lowestAccept.activadasTR)} Act. / ${formatInt(lowestAccept.ofertasTR)} Of.`;
+            document.getElementById('kpi3-delta').textContent = `${diff3 >= 0 ? '+' : ''}${diff3.toFixed(1)}% vs prom`;
+            document.getElementById('kpi3-context').textContent = `Activadas TR: ${formatInt(lowestAccept.activadasTR)} | Acept: ${formatPct(lowestAccept.aceptacionPct)}`;
+
+            const mostActivadas = [...pool].sort((a, b) => {
+                if (b.activadasTR !== a.activadasTR) return b.activadasTR - a.activadasTR;
+                return b.aceptacionPct - a.aceptacionPct;
+            })[0];
+
+            const shareActivadas = totalActivadasGroup > 0 ? (mostActivadas.activadasTR / totalActivadasGroup) * 100 : 0;
+            document.getElementById('kpi4-nombre').textContent = mostActivadas.nombre;
+            document.getElementById('kpi4-supervisor').textContent = `Sup: ${mostActivadas.supervisorText}`;
+            document.getElementById('kpi4-supervisor').title = mostActivadas.supervisorText;
+            document.getElementById('kpi4-cantidad').textContent = `${formatInt(mostActivadas.activadasTR)} Activadas`;
+            document.getElementById('kpi4-pct').textContent = formatPct(mostActivadas.aceptacionPct);
+            document.getElementById('kpi4-delta').textContent = `${shareActivadas.toFixed(1)}% del total`;
+            document.getElementById('kpi4-context').textContent = `Activadas TR: ${formatInt(mostActivadas.activadasTR)} | Acept: ${formatPct(mostActivadas.aceptacionPct)}`;
+        }
+
+        function renderSupervisorTable() {
+            const tbody = document.getElementById('sup-table-tbody');
+            const tfoot = document.getElementById('sup-table-tfoot');
+            const searchTerm = normalizeText(AppState.filters.supSearch);
+
+            let list = AppState.supervisorRows.filter(s =>
+                !searchTerm || normalizeText(s.supervisor).includes(searchTerm)
+            );
+
+            const { key, dir } = AppState.supSort;
+            list.sort((a, b) => {
+                const valA = a[key];
+                const valB = b[key];
+                if (typeof valA === 'string') {
+                    return dir === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+                }
+                return dir === 'asc' ? valA - valB : valB - valA;
+            });
+
+            const total = list.length;
+            if (total === 0) {
+                tbody.innerHTML = `<tr><td colspan="8" class="py-8 text-center text-slate-400">No hay supervisores que coincidan con la selección o búsqueda.</td></tr>`;
+                tfoot.innerHTML = '';
+                return;
+            }
+
+            tbody.innerHTML = list.map(s => {
+                let pctBadge = 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300';
+                if (s.aceptacionPct >= 35) {
+                    pctBadge = 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300';
+                } else if (s.aceptacionPct >= 15) {
+                    pctBadge = 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300';
+                } else {
+                    pctBadge = 'bg-rose-100 text-rose-800 dark:bg-rose-900/50 dark:text-rose-300';
+                }
+
+                return `
+                    <tr class="hover:bg-blue-50/40 dark:hover:bg-slate-800/70 transition-colors">
+                        <td class="py-3 px-3 text-center font-bold text-slate-900 dark:text-white">${s.supervisor}</td>
+                        <td class="py-3 px-3 text-center font-extrabold text-blue-700 dark:text-blue-400 bg-blue-50/30 dark:bg-blue-950/20 tabular-nums">${formatInt(s.ofertasTR)}</td>
+                        <td class="py-3 px-3 text-center font-bold text-slate-800 dark:text-slate-200 tabular-nums">${formatInt(s.activadasTR)}</td>
+                        <td class="py-3 px-3 text-center">
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold tabular-nums ${pctBadge}">
+                                ${formatPct(s.aceptacionPct)}
+                            </span>
+                        </td>
+                        <td class="py-3 px-3 text-center font-bold text-slate-800 dark:text-slate-200 tabular-nums">${formatInt(s.clientesDisponible)}</td>
+                        <td class="py-3 px-3 text-center font-semibold text-sky-700 dark:text-sky-300 tabular-nums">${formatPct(s.efectividadPct)}</td>
+                        <td class="py-3 px-3 text-center font-bold text-slate-800 dark:text-slate-100 tabular-nums">${formatCLP(s.ventaTotal)}</td>
+                        <td class="py-3 px-3 text-center font-semibold text-slate-700 dark:text-slate-300 tabular-nums">${formatInt(s.cantidadTotal)}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            const sumOfertas = list.reduce((s, v) => s + v.ofertasTR, 0);
+            const sumActivadas = list.reduce((s, v) => s + v.activadasTR, 0);
+            const sumClientesDisp = list.reduce((s, v) => s + v.clientesDisponible, 0);
+            const sumVenta = list.reduce((s, v) => s + v.ventaTotal, 0);
+            const sumCantidad = list.reduce((s, v) => s + v.cantidadTotal, 0);
+            const avgPct = list.reduce((s, v) => s + v.aceptacionPct, 0) / total;
+            const avgEfectPct = list.reduce((s, v) => s + v.efectividadPct, 0) / total;
+
+            tfoot.innerHTML = `
+                <tr>
+                    <td class="py-3.5 px-3 text-center uppercase text-xs tracking-wider">Total (${total})</td>
+                    <td class="py-3.5 px-3 text-center text-blue-800 dark:text-blue-300 tabular-nums">${formatInt(sumOfertas)}</td>
+                    <td class="py-3.5 px-3 text-center tabular-nums">${formatInt(sumActivadas)}</td>
+                    <td class="py-3.5 px-3 text-center tabular-nums">${formatPct(avgPct)}</td>
+                    <td class="py-3.5 px-3 text-center tabular-nums">${formatInt(sumClientesDisp)}</td>
+                    <td class="py-3.5 px-3 text-center tabular-nums">${formatPct(avgEfectPct)}</td>
+                    <td class="py-3.5 px-3 text-center tabular-nums">${formatCLP(sumVenta)}</td>
+                    <td class="py-3.5 px-3 text-center tabular-nums">${formatInt(sumCantidad)}</td>
+                </tr>
+            `;
+        }
+
+        function renderDetalleAVITable() {
+            const tbody = document.getElementById('avi-table-tbody');
+            const tfoot = document.getElementById('avi-table-tfoot');
+            const searchTerm = normalizeText(AppState.filters.aviSearch);
+
+            let list = AppState.groupedVendors.filter(v =>
+                !searchTerm ||
+                normalizeText(v.nombre).includes(searchTerm) ||
+                normalizeText(v.supervisorText).includes(searchTerm)
+            );
+
+            const { key, dir } = AppState.aviSort;
+            list.sort((a, b) => {
+                const valA = a[key];
+                const valB = b[key];
+                if (typeof valA === 'string') {
+                    return dir === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+                }
+                return dir === 'asc' ? valA - valB : valB - valA;
+            });
+
+            const total = list.length;
+            if (total === 0) {
+                tbody.innerHTML = `<tr><td colspan="9" class="py-10 text-center text-slate-400">No hay asesores que coincidan con los filtros o búsqueda.</td></tr>`;
+                tfoot.innerHTML = '';
+                document.getElementById('avi-pagination-info').textContent = 'Mostrando 0 asesores';
+                document.getElementById('avi-pagination-controls').innerHTML = '';
+                return;
+            }
+
+            const pageSizeVal = AppState.aviPagination.pageSize;
+            const perPage = pageSizeVal === 'ALL' ? total : Number(pageSizeVal);
+            const totalPages = Math.max(1, Math.ceil(total / perPage));
+            const currentPage = Math.min(AppState.aviPagination.currentPage, totalPages);
+            AppState.aviPagination.currentPage = currentPage;
+
+            const startIdx = (currentPage - 1) * perPage;
+            const endIdx = Math.min(startIdx + perPage, total);
+            const slice = list.slice(startIdx, endIdx);
+
+            tbody.innerHTML = slice.map(v => {
+                let pctBadge = 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300';
+                if (v.aceptacionPct >= 35) {
+                    pctBadge = 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300';
+                } else if (v.aceptacionPct >= 15) {
+                    pctBadge = 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300';
+                } else {
+                    pctBadge = 'bg-rose-100 text-rose-800 dark:bg-rose-900/50 dark:text-rose-300';
+                }
+
+                return `
+                    <tr class="hover:bg-blue-50/40 dark:hover:bg-slate-800/70 transition-colors">
+                        <td class="py-3 px-3 text-center font-bold text-slate-900 dark:text-white">${v.nombre}</td>
+                        <td class="py-3 px-3 text-center font-medium text-slate-600 dark:text-slate-300 text-[11px]">${v.supervisorText}</td>
+                        <td class="py-3 px-3 text-center font-extrabold text-blue-700 dark:text-blue-400 bg-blue-50/30 dark:bg-blue-950/20 tabular-nums">${formatInt(v.ofertasTR)}</td>
+                        <td class="py-3 px-3 text-center font-bold text-slate-800 dark:text-slate-200 tabular-nums">${formatInt(v.activadasTR)}</td>
+                        <td class="py-3 px-3 text-center">
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold tabular-nums ${pctBadge}">
+                                ${formatPct(v.aceptacionPct)}
+                            </span>
+                        </td>
+                        <td class="py-3 px-3 text-center font-bold text-slate-800 dark:text-slate-200 tabular-nums">${formatInt(v.clientesDisponible)}</td>
+                        <td class="py-3 px-3 text-center font-semibold text-sky-700 dark:text-sky-300 tabular-nums">${formatPct(v.efectividadPct)}</td>
+                        <td class="py-3 px-3 text-center font-bold text-slate-800 dark:text-slate-100 tabular-nums">${formatCLP(v.ventaTotal)}</td>
+                        <td class="py-3 px-3 text-center font-semibold text-slate-700 dark:text-slate-300 tabular-nums">${formatInt(v.cantidadTotal)}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            const sumOfertas = list.reduce((s, v) => s + v.ofertasTR, 0);
+            const sumActivadas = list.reduce((s, v) => s + v.activadasTR, 0);
+            const sumClientesDisp = list.reduce((s, v) => s + v.clientesDisponible, 0);
+            const sumVenta = list.reduce((s, v) => s + v.ventaTotal, 0);
+            const sumCantidad = list.reduce((s, v) => s + v.cantidadTotal, 0);
+            const avgPct = list.reduce((s, v) => s + v.aceptacionPct, 0) / total;
+            const avgEfectPct = list.reduce((s, v) => s + v.efectividadPct, 0) / total;
+
+            tfoot.innerHTML = `
+                <tr>
+                    <td class="py-3.5 px-3 text-center uppercase text-xs tracking-wider">Total (${total})</td>
+                    <td class="py-3.5 px-3 text-center text-slate-400">-</td>
+                    <td class="py-3.5 px-3 text-center text-blue-800 dark:text-blue-300 tabular-nums">${formatInt(sumOfertas)}</td>
+                    <td class="py-3.5 px-3 text-center tabular-nums">${formatInt(sumActivadas)}</td>
+                    <td class="py-3.5 px-3 text-center tabular-nums">${formatPct(avgPct)}</td>
+                    <td class="py-3.5 px-3 text-center tabular-nums">${formatInt(sumClientesDisp)}</td>
+                    <td class="py-3.5 px-3 text-center tabular-nums">${formatPct(avgEfectPct)}</td>
+                    <td class="py-3.5 px-3 text-center tabular-nums">${formatCLP(sumVenta)}</td>
+                    <td class="py-3.5 px-3 text-center tabular-nums">${formatInt(sumCantidad)}</td>
+                </tr>
+            `;
+
+            document.getElementById('avi-pagination-info').textContent = `Mostrando ${startIdx + 1} - ${endIdx} de ${total} asesores`;
+            renderPaginationBar('avi-pagination-controls', 'avi', currentPage, totalPages);
+        }
+
+        function renderPaginationBar(containerId, tableType, current, total) {
+            const container = document.getElementById(containerId);
+            if (total <= 1) {
+                container.innerHTML = '';
+                return;
+            }
+
+            let html = `
+                <button ${current === 1 ? 'disabled' : ''} data-table="${tableType}" data-page="${current - 1}" class="pg-btn px-2.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 disabled:opacity-40 hover:bg-slate-100 dark:hover:bg-slate-700 font-medium transition">
+                    Anterior
+                </button>
+            `;
+
+            for (let p = 1; p <= total; p++) {
+                if (p === 1 || p === total || (p >= current - 1 && p <= current + 1)) {
+                    const activeCls = p === current
+                        ? 'bg-blue-700 text-white border-blue-700'
+                        : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700';
+                    html += `<button data-table="${tableType}" data-page="${p}" class="pg-btn px-2.5 py-1 rounded-lg border font-semibold transition ${activeCls}">${p}</button>`;
+                } else if (p === current - 2 || p === current + 2) {
+                    html += `<span class="px-1">...</span>`;
+                }
+            }
+
+            html += `
+                <button ${current === total ? 'disabled' : ''} data-table="${tableType}" data-page="${current + 1}" class="pg-btn px-2.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 disabled:opacity-40 hover:bg-slate-100 dark:hover:bg-slate-700 font-medium transition">
+                    Siguiente
+                </button>
+            `;
+
+            container.innerHTML = html;
+        }
+
+        function renderTop5Sections() {
+            const pool = AppState.groupedVendors;
+            const lowTbody = document.getElementById('top5-low-accept-tbody');
+            const highTbody = document.getElementById('top5-high-activadas-tbody');
+
+            if (!pool || pool.length === 0) {
+                const emptyRow = `<div class="py-5 text-center text-xs text-slate-400">Sin datos disponibles</div>`;
+                lowTbody.innerHTML = emptyRow;
+                highTbody.innerHTML = emptyRow;
+                return;
+            }
+
+            const avgOfertas = pool.reduce((s, v) => s + v.ofertasTR, 0) / pool.length;
+            const highOfferCandidates = pool.filter(v => v.ofertasTR >= avgOfertas);
+            const sourceLowAccept = highOfferCandidates.length >= 5 ? highOfferCandidates : pool;
+
+            const top5LowAccept = [...sourceLowAccept]
+                .sort((a, b) => {
+                    const scoreA = a.ofertasTR * Math.max(0, 100 - a.aceptacionPct);
+                    const scoreB = b.ofertasTR * Math.max(0, 100 - b.aceptacionPct);
+                    if (scoreB !== scoreA) return scoreB - scoreA;
+                    return b.ofertasTR - a.ofertasTR;
+                })
+                .slice(0, 5);
+
+            lowTbody.innerHTML = top5LowAccept.map((v) => `
+                <div class="flex items-start justify-between gap-3 py-2.5 px-2 border-b border-slate-300 dark:border-slate-700 last:border-b-0 text-xs">
+                    <div class="flex-1 min-w-0">
+                        <div class="font-bold text-slate-900 dark:text-slate-100 leading-snug break-words">${v.nombre}</div>
+                        <div class="text-[11px] font-medium text-slate-500 dark:text-slate-400 mt-0.5 leading-normal break-words">Sup: ${v.supervisorText}</div>
+                    </div>
+                    <span class="text-slate-700 dark:text-slate-300 shrink-0 tabular-nums whitespace-nowrap">
+                        Ofertas: <strong class="text-slate-900 dark:text-white">${formatInt(v.ofertasTR)}</strong> | Acept: <strong class="text-rose-600 dark:text-rose-400">${formatPct(v.aceptacionPct)}</strong>
+                    </span>
+                </div>
+            `).join('');
+
+            const avgActivadas = pool.reduce((s, v) => s + v.activadasTR, 0) / pool.length;
+            const highActivadasCandidates = pool.filter(v => v.activadasTR >= avgActivadas);
+            const sourceHighActivadas = highActivadasCandidates.length >= 5 ? highActivadasCandidates : pool;
+
+            const top5HighActivadas = [...sourceHighActivadas]
+                .sort((a, b) => {
+                    if (b.activadasTR !== a.activadasTR) return b.activadasTR - a.activadasTR;
+                    return a.ofertasTR - b.ofertasTR;
+                })
+                .slice(0, 5);
+
+            highTbody.innerHTML = top5HighActivadas.map((v) => `
+                <div class="flex items-start justify-between gap-3 py-2.5 px-2 border-b border-slate-300 dark:border-slate-700 last:border-b-0 text-xs">
+                    <div class="flex-1 min-w-0">
+                        <div class="font-bold text-slate-900 dark:text-slate-100 leading-snug break-words">${v.nombre}</div>
+                        <div class="text-[11px] font-medium text-slate-500 dark:text-slate-400 mt-0.5 leading-normal break-words">Sup: ${v.supervisorText}</div>
+                    </div>
+                    <span class="text-slate-700 dark:text-slate-300 shrink-0 tabular-nums whitespace-nowrap">
+                        Activadas: <strong class="text-slate-900 dark:text-white">${formatInt(v.activadasTR)}</strong> | Ofertas: <strong class="text-slate-900 dark:text-white">${formatInt(v.ofertasTR)}</strong>
+                    </span>
+                </div>
+            `).join('');
+        }
+
+        async function exportSectionAsPNG(elementId, filePrefix) {
+            const target = document.getElementById(elementId);
+            if (!target || target.classList.contains('hidden')) {
+                notifyUser('Carga primero un archivo Excel para exportar el reporte.', 'warning');
+                return;
+            }
+
+            notifyUser('Generando imagen PNG de alta resolución...', 'info');
+            const tempReplacements = [];
+            try {
+                const selects = target.querySelectorAll('select');
+                selects.forEach(sel => {
+                    const selectedOption = sel.options[sel.selectedIndex];
+                    const displayText = selectedOption ? selectedOption.text : sel.value;
+                    const rect = sel.getBoundingClientRect();
+                    const box = document.createElement('div');
+                    box.textContent = displayText;
+                    box.style.width = rect.width ? `${rect.width}px` : '100%';
+                    box.style.minHeight = '40px';
+                    box.style.padding = '8px 12px';
+                    box.style.display = 'flex';
+                    box.style.alignItems = 'center';
+                    box.style.justifyContent = 'space-between';
+                    box.style.borderRadius = '6px';
+                    box.style.border = '1.5px solid #94a3b8';
+                    box.style.backgroundColor = document.documentElement.classList.contains('dark') ? '#1e293b' : '#f8fafc';
+                    box.style.color = document.documentElement.classList.contains('dark') ? '#f1f5f9' : '#0f172a';
+                    box.style.fontSize = '13px';
+                    box.style.fontWeight = '600';
+                    box.style.lineHeight = '1.3';
+                    box.style.boxSizing = 'border-box';
+
+                    const arrow = document.createElement('span');
+                    arrow.textContent = '▾';
+                    arrow.style.marginLeft = '8px';
+                    arrow.style.color = '#64748b';
+                    box.appendChild(arrow);
+
+                    sel.style.display = 'none';
+                    sel.parentNode.insertBefore(box, sel.nextSibling);
+                    tempReplacements.push({ sel, box });
+                });
+
+                const isDark = document.documentElement.classList.contains('dark');
+                const canvas = await html2canvas(target, {
+                    scale: 2,
+                    useCORS: true,
+                    backgroundColor: isDark ? '#020617' : '#f8fafc',
+                    logging: false
+                });
+
+                const link = document.createElement('a');
+                const supSuffix = AppState.filters.supervisores.length === 0
+                    ? 'Todos'
+                    : AppState.filters.supervisores.join('_').replace(/[^a-zA-Z0-9_-]+/g, '_');
+                const stamp = new Date().toISOString().slice(0, 10);
+                link.download = `${filePrefix}_${supSuffix}_${stamp}.png`;
+                link.href = canvas.toDataURL('image/png', 1.0);
+                link.click();
+
+                tempReplacements.forEach(({ sel, box }) => { box.remove(); sel.style.display = ''; });
+                tempReplacements.length = 0;
+                notifyUser('Imagen PNG descargada correctamente.', 'success');
+            } catch (err) {
+                tempReplacements.forEach(({ sel, box }) => { box.remove(); sel.style.display = ''; });
+                tempReplacements.length = 0;
+                console.error('Error al exportar PNG:', err);
+                notifyUser('No se pudo exportar la imagen PNG.', 'error');
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const fileInput = document.getElementById('excel-file-input');
+            const dropzoneCard = document.getElementById('dropzone-card');
+
+            document.getElementById('btn-theme-toggle').addEventListener('click', () => {
+                document.documentElement.classList.toggle('dark');
+            });
+
+            document.getElementById('btn-refresh-report').addEventListener('click', handleRefreshReportClick);
+
+            fileInput.addEventListener('change', (e) => {
+                if (e.target.files && e.target.files[0]) {
+                    processExcelFile(e.target.files[0]);
+                    e.target.value = '';
+                }
+            });
+
+            ['dragenter', 'dragover'].forEach(evtName => {
+                document.body.addEventListener(evtName, (e) => {
+                    e.preventDefault();
+                    dropzoneCard.classList.add('border-blue-600', 'bg-blue-50/40', 'dark:bg-blue-950/30');
+                });
+            });
+
+            ['dragleave', 'drop'].forEach(evtName => {
+                document.body.addEventListener(evtName, (e) => {
+                    e.preventDefault();
+                    dropzoneCard.classList.remove('border-blue-600', 'bg-blue-50/40', 'dark:bg-blue-950/30');
+                });
+            });
+
+            document.body.addEventListener('drop', (e) => {
+                if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) {
+                    processExcelFile(e.dataTransfer.files[0]);
+                }
+            });
+
+            document.getElementById('filter-zona').addEventListener('change', (e) => {
+                AppState.filters.zona = e.target.value;
+                populateFilters();
+                refreshDashboard();
+            });
+
+            document.getElementById('filter-sucursal').addEventListener('change', (e) => {
+                AppState.filters.sucursal = e.target.value;
+                populateFilters();
+                refreshDashboard();
+            });
+
+            const supBtn = document.getElementById('btn-supervisor-dropdown');
+            const supMenu = document.getElementById('supervisor-dropdown-menu');
+            supBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const isHidden = supMenu.classList.contains('hidden');
+                supMenu.classList.toggle('hidden', !isHidden);
+                supBtn.setAttribute('aria-expanded', String(isHidden));
+            });
+
+            document.addEventListener('click', (e) => {
+                const wrapper = document.getElementById('supervisor-multiselect-wrapper');
+                if (wrapper && !wrapper.contains(e.target)) {
+                    supMenu.classList.add('hidden');
+                    supBtn.setAttribute('aria-expanded', 'false');
+                }
+            });
+
+            document.getElementById('supervisor-dropdown-search').addEventListener('input', () => {
+                const byZona = AppState.records.filter(r => AppState.filters.zona === 'ALL' || r.zona === AppState.filters.zona);
+                const bySuc = byZona.filter(r => AppState.filters.sucursal === 'ALL' || r.sucursal === AppState.filters.sucursal);
+                const supervisores = sortSupervisorList([...new Set(bySuc.map(r => r.supervisor))]);
+                renderSupervisorOptions(supervisores);
+            });
+
+            document.getElementById('supervisor-options-list').addEventListener('change', (e) => {
+                if (!e.target.classList.contains('sup-option-checkbox')) return;
+                const checkedVals = Array.from(document.querySelectorAll('#supervisor-options-list .sup-option-checkbox:checked'))
+                    .map(cb => cb.value);
+
+                const byZona = AppState.records.filter(r => AppState.filters.zona === 'ALL' || r.zona === AppState.filters.zona);
+                const bySuc = byZona.filter(r => AppState.filters.sucursal === 'ALL' || r.sucursal === AppState.filters.sucursal);
+                const availableSups = sortSupervisorList([...new Set(bySuc.map(r => r.supervisor))]);
+
+                const searchVal = normalizeText(document.getElementById('supervisor-dropdown-search').value);
+                if (!searchVal) {
+                    AppState.filters.supervisores = checkedVals;
+                } else {
+                    const visibleSups = availableSups.filter(sp => normalizeText(sp).includes(searchVal));
+                    const remaining = AppState.filters.supervisores.filter(sp => !visibleSups.includes(sp));
+                    AppState.filters.supervisores = [...remaining, ...checkedVals];
+                }
+
+                updateSupervisorDropdownLabel(availableSups);
+                refreshDashboard();
+            });
+
+            document.getElementById('btn-sup-select-all').addEventListener('click', () => {
+                const byZona = AppState.records.filter(r => AppState.filters.zona === 'ALL' || r.zona === AppState.filters.zona);
+                const bySuc = byZona.filter(r => AppState.filters.sucursal === 'ALL' || r.sucursal === AppState.filters.sucursal);
+                const availableSups = sortSupervisorList([...new Set(bySuc.map(r => r.supervisor))]);
+                AppState.filters.supervisores = [...availableSups];
+                renderSupervisorOptions(availableSups);
+                updateSupervisorDropdownLabel(availableSups);
+                refreshDashboard();
+            });
+
+            document.getElementById('btn-sup-clear-all').addEventListener('click', () => {
+                const byZona = AppState.records.filter(r => AppState.filters.zona === 'ALL' || r.zona === AppState.filters.zona);
+                const bySuc = byZona.filter(r => AppState.filters.sucursal === 'ALL' || r.sucursal === AppState.filters.sucursal);
+                const availableSups = sortSupervisorList([...new Set(bySuc.map(r => r.supervisor))]);
+                AppState.filters.supervisores = [];
+                renderSupervisorOptions(availableSups);
+                updateSupervisorDropdownLabel(availableSups);
+                refreshDashboard();
+            });
+
+            document.getElementById('filter-fecha').addEventListener('change', (e) => {
+                AppState.filters.fecha = e.target.value;
+                refreshDashboard();
+            });
+
+            document.getElementById('btn-clear-filters').addEventListener('click', () => {
+                resetAllFilters();
+                notifyUser('Filtros restablecidos.', 'info');
+            });
+
+            document.getElementById('sup-table-search-input').addEventListener('input', (e) => {
+                AppState.filters.supSearch = e.target.value;
+                renderSupervisorTable();
+            });
+
+            document.querySelectorAll('.sup-sortable').forEach(th => {
+                th.addEventListener('click', () => {
+                    const sortKey = th.getAttribute('data-sup-sort');
+                    if (AppState.supSort.key === sortKey) {
+                        AppState.supSort.dir = AppState.supSort.dir === 'asc' ? 'desc' : 'asc';
+                    } else {
+                        AppState.supSort.key = sortKey;
+                        AppState.supSort.dir = sortKey === 'supervisor' ? 'asc' : 'desc';
+                    }
+
+                    document.querySelectorAll('.sup-sortable .sort-indicator').forEach(ic => {
+                        ic.textContent = '↕';
+                        ic.classList.add('text-blue-200');
+                    });
+                    const activeIc = th.querySelector('.sort-indicator');
+                    activeIc.textContent = AppState.supSort.dir === 'asc' ? '↑' : '↓';
+                    activeIc.classList.remove('text-blue-200');
+
+                    renderSupervisorTable();
+                });
+            });
+
+            document.getElementById('avi-search-input').addEventListener('input', (e) => {
+                AppState.filters.aviSearch = e.target.value;
+                AppState.aviPagination.currentPage = 1;
+                renderDetalleAVITable();
+            });
+
+            document.querySelectorAll('.avi-sortable').forEach(th => {
+                th.addEventListener('click', () => {
+                    const sortKey = th.getAttribute('data-avi-sort');
+                    if (AppState.aviSort.key === sortKey) {
+                        AppState.aviSort.dir = AppState.aviSort.dir === 'asc' ? 'desc' : 'asc';
+                    } else {
+                        AppState.aviSort.key = sortKey;
+                        AppState.aviSort.dir = sortKey === 'nombre' ? 'asc' : 'desc';
+                    }
+
+                    document.querySelectorAll('.avi-sortable .sort-indicator').forEach(ic => {
+                        ic.textContent = '↕';
+                        ic.classList.add('text-slate-400');
+                    });
+                    const activeIc = th.querySelector('.sort-indicator');
+                    activeIc.textContent = AppState.aviSort.dir === 'asc' ? '↑' : '↓';
+                    activeIc.classList.remove('text-slate-400');
+
+                    renderDetalleAVITable();
+                });
+            });
+
+            document.getElementById('avi-page-size').addEventListener('change', (e) => {
+                AppState.aviPagination.pageSize = e.target.value;
+                AppState.aviPagination.currentPage = 1;
+                renderDetalleAVITable();
+            });
+
+            document.addEventListener('click', (e) => {
+                const btn = e.target.closest('.pg-btn');
+                if (!btn || btn.disabled) return;
+                const tableType = btn.getAttribute('data-table');
+                const pageNum = parseInt(btn.getAttribute('data-page'), 10);
+
+                if (tableType === 'avi') {
+                    AppState.aviPagination.currentPage = pageNum;
+                    renderDetalleAVITable();
+                }
+            });
+
+            document.getElementById('btn-export-full-png').addEventListener('click', () => {
+                exportSectionAsPNG('dashboard-main-container', 'Reporte_Financiero_SUPERVISOR');
+            });
+
+            document.getElementById('btn-export-sup-png').addEventListener('click', () => {
+                exportSectionAsPNG('section-detalle-supervisores', 'Resumen_Supervisores');
+            });
+
+            document.getElementById('btn-export-avi-png').addEventListener('click', () => {
+                exportSectionAsPNG('section-detalle-avi', 'Detalle_AVI_Asesores');
+            });
+        });
+    </script>
+</body>
+</html>
