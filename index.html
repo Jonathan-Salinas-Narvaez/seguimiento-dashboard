@@ -669,6 +669,21 @@
             return String(val).trim();
         }
 
+        function formatCorteB4Value(val) {
+            if (val === null || val === undefined) return '';
+            if (typeof val === 'number' && val > 20000 && val < 90000) {
+                const ms = (val - 25569) * 86400 * 1000;
+                const d = new Date(ms);
+                const dd = String(d.getUTCDate()).padStart(2, '0');
+                const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+                const hh = String(d.getUTCHours()).padStart(2, '0');
+                const min = String(d.getUTCMinutes()).padStart(2, '0');
+                const hasTime = (val % 1) > 0.0001;
+                return hasTime ? `${dd}/${mm} ${hh}:${min}` : `${dd}/${mm}/${d.getUTCFullYear()}`;
+            }
+            return String(val).trim();
+        }
+
         function notifyUser(message, type = 'info') {
             const container = document.getElementById('toast-container');
             const toast = document.createElement('div');
@@ -693,37 +708,69 @@
         /* =========================================================================
            DESCARGA Y SINCRONIZACIÓN AUTOMÁTICA DESDE GOOGLE SHEETS
            ========================================================================= */
+        async function fetchGvizJsonp(spreadsheetId, gid) {
+            return new Promise((resolve, reject) => {
+                const callbackName = 'gvizCb_' + Date.now() + '_' + Math.floor(Math.random() * 10000);
+                const script = document.createElement('script');
+                const timeout = setTimeout(() => {
+                    cleanup();
+                    reject(new Error('Tiempo de espera agotado al consultar Google Sheets.'));
+                }, 12000);
+
+                function cleanup() {
+                    clearTimeout(timeout);
+                    delete window[callbackName];
+                    if (script.parentNode) script.parentNode.removeChild(script);
+                }
+
+                window[callbackName] = function(payload) {
+                    cleanup();
+                    if (!payload || payload.status === 'error' || !payload.table) {
+                        reject(new Error('Google Sheets rechazó el acceso. Verifica que esté compartido como "Cualquier persona con el enlace".'));
+                        return;
+                    }
+                    const cols = (payload.table.cols || []).map(c => c.label || c.id || '');
+                    const rows = (payload.table.rows || []).map(r =>
+                        (r.c || []).map(cell => {
+                            if (!cell) return '';
+                            return (cell.f !== undefined && cell.f !== null) ? cell.f : (cell.v ?? '');
+                        })
+                    );
+                    const matrix = [cols, ...rows];
+                    const wb = XLSX.utils.book_new();
+                    const ws = XLSX.utils.aoa_to_sheet(matrix);
+                    XLSX.utils.book_append_sheet(wb, ws, GoogleSheetConfig.targetSheetName);
+                    const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+                    resolve({ buffer: new Uint8Array(out).buffer, isCsv: false });
+                };
+
+                script.onerror = function() {
+                    cleanup();
+                    reject(new Error('Error de red al conectar con Google Sheets. Revisa tu conexión/VPN y los permisos del archivo.'));
+                };
+
+                script.src = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?gid=${gid}&tqx=responseHandler:${callbackName}&t=${Date.now()}`;
+                document.body.appendChild(script);
+            });
+        }
+
         async function downloadBufferFromGoogleSheet() {
             const cacheBuster = Date.now();
             const id = GoogleSheetConfig.spreadsheetId;
             const gid = GoogleSheetConfig.gid;
 
-            // Endpoints públicos de Google Sheets (funcionan en GitHub Pages sin CORS si el Sheet está compartido con enlace)
             const candidateUrls = [
-                `https://docs.google.com/spreadsheets/d/${id}/export?format=xlsx&gid=${gid}&t=${cacheBuster}`,
                 `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv&gid=${gid}&t=${cacheBuster}`,
-                `https://docs.google.com/spreadsheets/d/${id}/export?format=csv&gid=${gid}&t=${cacheBuster}`
+                `https://docs.google.com/spreadsheets/d/${id}/export?format=xlsx&gid=${gid}&t=${cacheBuster}`
             ];
-
-            let lastError = null;
 
             for (const url of candidateUrls) {
                 try {
-                    const response = await fetch(url, {
-                        method: 'GET',
-                        cache: 'no-store'
-                    });
-
-                    if (!response.ok) {
-                        lastError = new Error(`HTTP ${response.status} al consultar Google Sheets.`);
-                        continue;
-                    }
+                    const response = await fetch(url, { method: 'GET', cache: 'no-store' });
+                    if (!response.ok) continue;
 
                     const contentType = (response.headers.get('content-type') || '').toLowerCase();
-                    if (contentType.includes('text/html')) {
-                        lastError = new Error('Google Sheets devolvió una pantalla de acceso. Verifica que el archivo esté compartido como "Cualquier persona con el enlace (Lector)".');
-                        continue;
-                    }
+                    if (contentType.includes('text/html')) continue;
 
                     const buffer = await response.arrayBuffer();
                     if (buffer && buffer.byteLength > 0) {
@@ -732,12 +779,12 @@
                             isCsv: url.includes('csv') || contentType.includes('text/csv')
                         };
                     }
-                } catch (err) {
-                    lastError = err;
+                } catch (_) {
+                    // Intenta siguiente método
                 }
             }
 
-            throw lastError || new Error('No se pudo descargar la planilla desde Google Sheets. Verifica que esté compartida como "Cualquier persona con el enlace".');
+            return await fetchGvizJsonp(id, gid);
         }
 
         function setSyncButtonsLoading(loading) {
@@ -911,11 +958,12 @@
                     return;
                 }
 
+                // Celda B4 -> fila índice 3, columna índice 1
                 let corteFromCell = '';
-                if (matrix[3] && matrix[3][1]) {
-                    const b4Val = String(matrix[3][1]).trim();
-                    if (b4Val && !normalizeText(b4Val).startsWith('zona')) {
-                        corteFromCell = b4Val;
+                if (matrix[3] && matrix[3][1] !== undefined && matrix[3][1] !== null) {
+                    const b4Formatted = formatCorteB4Value(matrix[3][1]);
+                    if (b4Formatted && !normalizeText(b4Formatted).startsWith('zona')) {
+                        corteFromCell = b4Formatted;
                     }
                 }
 
