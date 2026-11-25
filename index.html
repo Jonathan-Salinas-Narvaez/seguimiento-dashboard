@@ -25,34 +25,7 @@
         };
     </script>
 
-    <!-- MSAL Browser para autenticación corporativa Microsoft / SharePoint -->
-    <script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
-    <script>
-        (function ensureMsalLoaded() {
-            if (window.msal) return;
-            const fallbacks = [
-                './msal-browser.min.js',
-                'msal-browser.min.js',
-                'https://unpkg.com/@azure/msal-browser@2.38.3/lib/msal-browser.min.js',
-                'https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js'
-            ];
-            let idx = 0;
-            function tryNext() {
-                if (window.msal || idx >= fallbacks.length) return;
-                const s = document.createElement('script');
-                s.src = fallbacks[idx++];
-                s.async = false;
-                s.onload = function() {
-                    if (!window.msal) tryNext();
-                };
-                s.onerror = tryNext;
-                document.head.appendChild(s);
-            }
-            tryNext();
-        })();
-    </script>
-
-    <!-- SheetJS (xlsx.full.min.js) para lectura de archivos Excel -->
+    <!-- SheetJS (xlsx.full.min.js) para lectura de Google Sheets / Excel -->
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
     <!-- html2canvas para exportación a imagen PNG -->
@@ -116,29 +89,29 @@
                         <span class="font-bold text-sm sm:text-base tracking-tight text-slate-900 dark:text-white">
                             Seguimiento Online AV, SAV y Tarjetas
                         </span>
-                        <span id="status-badge" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
-                            SharePoint • Listo para conectar
+                        <span id="status-badge" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                            Google Sheets • Conectando...
                         </span>
                     </div>
                     <p id="file-info-text" class="text-xs text-slate-500 dark:text-slate-400">
-                        Origen: <strong class="font-semibold text-[#0b2545] dark:text-blue-400">SharePoint (PRUEBA198)</strong> • Hoja: <strong class="font-semibold text-[#0b2545] dark:text-blue-400">Vendedores Salón</strong>
+                        Origen: <strong class="font-semibold text-[#0b2545] dark:text-blue-400">Google Sheets</strong> • Hoja: <strong class="font-semibold text-[#0b2545] dark:text-blue-400">Vendedores Salón</strong>
                     </p>
                 </div>
             </div>
 
             <div class="flex flex-wrap items-center gap-2">
-                <!-- Botón Conectar / Sincronizar SharePoint -->
-                <button id="btn-sync-sharepoint" type="button" title="Conectar y actualizar ahora desde SharePoint" class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold bg-[#0078d4] hover:bg-[#106ebe] text-white shadow-sm transition-all active:scale-95">
-                    <svg id="icon-sync-sp" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <!-- Botón Sincronizar Google Sheets -->
+                <button id="btn-sync-gsheet" type="button" title="Sincronizar ahora desde Google Sheets" class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-all active:scale-95">
+                    <svg id="icon-sync-gs" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"></path>
                     </svg>
-                    <span id="sync-sp-text">Conectar SharePoint</span>
+                    <span id="sync-gs-text">Sincronizar Google Sheet</span>
                 </button>
 
                 <!-- Selector de intervalo automático -->
                 <div class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs">
                     <span class="font-semibold text-slate-600 dark:text-slate-300 hidden sm:inline">Auto:</span>
-                    <select id="auto-refresh-select" title="Frecuencia de actualización automática desde SharePoint" class="bg-transparent font-bold text-[#0b2545] dark:text-blue-400 focus:outline-none cursor-pointer">
+                    <select id="auto-refresh-select" title="Frecuencia de actualización automática desde Google Sheets" class="bg-transparent font-bold text-[#0b2545] dark:text-blue-400 focus:outline-none cursor-pointer">
                         <option value="1">1 min</option>
                         <option value="3">3 min</option>
                         <option value="5" selected>5 min</option>
@@ -183,17 +156,17 @@
         </div>
     </header>
 
-    <!-- ESTADO INICIAL (CONEXIÓN SHAREPOINT O CARGA LOCAL) -->
+    <!-- ESTADO INICIAL (CARGA DESDE GOOGLE SHEETS O ARCHIVO LOCAL) -->
     <section id="empty-state-panel" class="flex-1 flex items-center justify-center px-4 py-10">
         <div id="dropzone-card" class="max-w-2xl w-full bg-white dark:bg-slate-900 rounded-2xl border-2 border-dashed border-slate-300 dark:border-slate-700 p-8 sm:p-11 text-center shadow-sm transition-all">
-            <div class="mx-auto w-16 h-16 rounded-2xl bg-blue-50 dark:bg-blue-950/60 text-[#0078d4] dark:text-blue-400 flex items-center justify-center mb-5">
+            <div class="mx-auto w-16 h-16 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mb-5">
                 <svg class="w-9 h-9" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"></path>
                 </svg>
             </div>
 
-            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-blue-50 text-[#0078d4] dark:bg-blue-950 dark:text-blue-300 border border-blue-200 dark:border-blue-800 mb-3">
-                SharePoint Online • Hoja Vendedores Salón
+            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 mb-3">
+                Google Sheets Live • Hoja Vendedores Salón
             </span>
 
             <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
@@ -203,8 +176,8 @@
                 Dashboard Captacion, AV/SAV
             </p>
 
-            <p id="initial-sp-msg" class="text-sm text-slate-600 dark:text-slate-400 mt-3 max-w-lg mx-auto leading-relaxed">
-                Conecta tu cuenta corporativa de Microsoft para sincronizar automáticamente con <strong class="font-semibold text-slate-800 dark:text-slate-200">Seguimiento Online Av, Sav y Tarjetas.xlsx</strong> en SharePoint, o arrastra un archivo local aquí.
+            <p id="initial-gs-msg" class="text-sm text-slate-600 dark:text-slate-400 mt-3 max-w-lg mx-auto leading-relaxed">
+                Conectando automáticamente con la planilla de <strong class="font-semibold text-slate-800 dark:text-slate-200">Google Sheets</strong> configurada, o arrastra un archivo local aquí.
             </p>
 
             <div id="upload-error-box" class="hidden mt-5 p-4 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 text-left">
@@ -212,11 +185,11 @@
             </div>
 
             <div class="mt-6 flex flex-wrap items-center justify-center gap-3">
-                <button id="btn-hero-connect-sp" type="button" class="cursor-pointer inline-flex items-center gap-2 px-6 py-3 rounded-lg text-sm font-bold bg-[#0078d4] hover:bg-[#106ebe] text-white shadow-sm transition-all active:scale-95">
+                <button id="btn-hero-connect-gs" type="button" class="cursor-pointer inline-flex items-center gap-2 px-6 py-3 rounded-lg text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-all active:scale-95">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"></path>
                     </svg>
-                    <span>Conectar con SharePoint</span>
+                    <span>Cargar desde Google Sheets</span>
                 </button>
 
                 <label for="excel-file-input" class="cursor-pointer inline-flex items-center gap-2 px-5 py-3 rounded-lg text-sm font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 shadow-sm transition-all active:scale-95">
@@ -572,22 +545,16 @@
 
 <script>
         /* =========================================================================
-           CONFIGURACIÓN DE CONEXIÓN A SHAREPOINT VÍA MICROSOFT GRAPH + MSAL
+           CONFIGURACIÓN DE CONEXIÓN A GOOGLE SHEETS (SIN LOGIN PARA GITHUB PAGES)
            ========================================================================= */
-        const SharePointConfig = {
-            clientId: 'e788907c-8736-4348-b1d2-3fbaa6fadfdc',
-            tenantId: '326c2335-66a0-4d53-aa59-0afa0692c5b2',
-            redirectUri: window.location.origin + window.location.pathname,
-            fileUrl: 'https://ripleycorp.sharepoint.com/sites/PRUEBA198/Documentos%20compartidos/Seguimiento/11._Noviembre/Seguimiento%20Online%20Av,%20Sav%20y%20Tarjetas.xlsx',
-            siteHostname: 'ripleycorp.sharepoint.com',
-            sitePath: '/sites/PRUEBA198',
-            fileRelativePath: 'Seguimiento/11._Noviembre/Seguimiento Online Av, Sav y Tarjetas.xlsx',
-            scopes: ['Files.Read.All', 'Sites.Read.All'],
+        const GoogleSheetConfig = {
+            spreadsheetId: '1F1n8t3NopLzlWaPxrt8GPFy9xiU_li_xLv9UmzBGC00',
+            gid: '0',
+            targetSheetName: 'Vendedores Salón',
             autoRefreshMinutes: 5,
             timerId: null,
-            msalInstance: null,
             isSyncing: false,
-            lastSourceMode: 'sharepoint' // 'sharepoint' | 'local'
+            lastSourceMode: 'gsheet' // 'gsheet' | 'local'
         };
 
         const AppState = {
@@ -645,7 +612,7 @@
                 .trim()
                 .toLowerCase()
                 .normalize('NFD')
-                .replace(/[̀-ͯ]/g, '')
+                .replace(/[\u0300-\u036f]/g, '')
                 .replace(/\s+/g, ' ');
         }
 
@@ -724,229 +691,156 @@
         }
 
         /* =========================================================================
-           AUTENTICACIÓN MSAL Y DESCARGA DESDE SHAREPOINT (GRAPH API)
+           DESCARGA Y SINCRONIZACIÓN AUTOMÁTICA DESDE GOOGLE SHEETS
            ========================================================================= */
-        async function waitForMsal(timeoutMs = 3000) {
-            if (window.msal) return window.msal;
-            const start = Date.now();
-            while (!window.msal && (Date.now() - start) < timeoutMs) {
-                await new Promise(r => setTimeout(r, 80));
-            }
-            return window.msal || null;
-        }
+        async function downloadBufferFromGoogleSheet() {
+            const cacheBuster = Date.now();
+            const id = GoogleSheetConfig.spreadsheetId;
+            const gid = GoogleSheetConfig.gid;
 
-        async function getMsalInstance() {
-            const msalLib = await waitForMsal(3000);
-            if (!msalLib) {
-                throw new Error('No se pudo cargar la librería de autenticación de Microsoft (msal-browser). Revisa tu conexión o sube msal-browser.min.js junto al HTML.');
-            }
-            if (!SharePointConfig.msalInstance) {
-                SharePointConfig.msalInstance = new msal.PublicClientApplication({
-                    auth: {
-                        clientId: SharePointConfig.clientId,
-                        authority: `https://login.microsoftonline.com/${SharePointConfig.tenantId}`,
-                        redirectUri: SharePointConfig.redirectUri
-                    },
-                    cache: {
-                        cacheLocation: 'localStorage',
-                        storeAuthStateInCookie: false
-                    }
-                });
-                await SharePointConfig.msalInstance.initialize();
-            }
-            return SharePointConfig.msalInstance;
-        }
+            // Endpoints públicos de Google Sheets (funcionan en GitHub Pages sin CORS si el Sheet está compartido con enlace)
+            const candidateUrls = [
+                `https://docs.google.com/spreadsheets/d/${id}/export?format=xlsx&gid=${gid}&t=${cacheBuster}`,
+                `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv&gid=${gid}&t=${cacheBuster}`,
+                `https://docs.google.com/spreadsheets/d/${id}/export?format=csv&gid=${gid}&t=${cacheBuster}`
+            ];
 
-        function encodeGraphSharingUrl(url) {
-            const bytes = new TextEncoder().encode(url.trim());
-            let binary = '';
-            for (let i = 0; i < bytes.length; i++) {
-                binary += String.fromCharCode(bytes[i]);
-            }
-            return 'u!' + btoa(binary)
-                .replace(/\+/g, '-')
-                .replace(/\//g, '_')
-                .replace(/=+$/, '');
-        }
+            let lastError = null;
 
-        async function acquireSharePointToken(interactive = false) {
-            const pca = await getMsalInstance();
-            const redirectResponse = await pca.handleRedirectPromise().catch(() => null);
-            if (redirectResponse && redirectResponse.account) {
-                pca.setActiveAccount(redirectResponse.account);
-                return redirectResponse.accessToken;
-            }
-
-            const accounts = pca.getAllAccounts();
-            const activeAccount = pca.getActiveAccount() || accounts[0];
-
-            if (activeAccount) {
+            for (const url of candidateUrls) {
                 try {
-                    const silentResult = await pca.acquireTokenSilent({
-                        scopes: SharePointConfig.scopes,
-                        account: activeAccount
+                    const response = await fetch(url, {
+                        method: 'GET',
+                        cache: 'no-store'
                     });
-                    return silentResult.accessToken;
-                } catch (silentErr) {
-                    if (!interactive) return null;
+
+                    if (!response.ok) {
+                        lastError = new Error(`HTTP ${response.status} al consultar Google Sheets.`);
+                        continue;
+                    }
+
+                    const contentType = (response.headers.get('content-type') || '').toLowerCase();
+                    if (contentType.includes('text/html')) {
+                        lastError = new Error('Google Sheets devolvió una pantalla de acceso. Verifica que el archivo esté compartido como "Cualquier persona con el enlace (Lector)".');
+                        continue;
+                    }
+
+                    const buffer = await response.arrayBuffer();
+                    if (buffer && buffer.byteLength > 0) {
+                        return {
+                            buffer,
+                            isCsv: url.includes('csv') || contentType.includes('text/csv')
+                        };
+                    }
+                } catch (err) {
+                    lastError = err;
                 }
             }
 
-            if (!interactive) return null;
-
-            try {
-                const popupResult = await pca.loginPopup({
-                    scopes: SharePointConfig.scopes
-                });
-                pca.setActiveAccount(popupResult.account);
-                return popupResult.accessToken;
-            } catch (popupErr) {
-                // Respaldo con redirect si el navegador (ej. móvil) bloquea ventanas emergentes
-                const errCode = popupErr?.errorCode || '';
-                if (
-                    errCode.includes('popup_window_error') ||
-                    errCode.includes('empty_window_error') ||
-                    errCode.includes('user_cancelled') === false
-                ) {
-                    await pca.loginRedirect({ scopes: SharePointConfig.scopes });
-                    return null;
-                }
-                throw popupErr;
-            }
-        }
-
-        async function downloadExcelBufferFromGraph(token) {
-            const headers = { Authorization: `Bearer ${token}` };
-
-            // Método 1: Endpoint /shares/{encodedUrl}/driveItem/content
-            const shareId = encodeGraphSharingUrl(SharePointConfig.fileUrl);
-            const shareEndpoint = `https://graph.microsoft.com/v1.0/shares/${shareId}/driveItem/content`;
-            const res1 = await fetch(shareEndpoint, { headers, cache: 'no-store' });
-            if (res1.ok) {
-                return await res1.arrayBuffer();
-            }
-
-            // Método 2 (respaldo robusto): Resolver site-id y ruta relativa dentro de Documentos compartidos
-            const siteUrl = `https://graph.microsoft.com/v1.0/sites/${SharePointConfig.siteHostname}:${SharePointConfig.sitePath}`;
-            const siteRes = await fetch(siteUrl, { headers });
-            if (!siteRes.ok) {
-                throw new Error(`No se pudo acceder al sitio SharePoint (HTTP ${siteRes.status}). Verifica permisos Sites.Read.All / Files.Read.All.`);
-            }
-            const siteData = await siteRes.json();
-            const encodedPath = SharePointConfig.fileRelativePath
-                .split('/')
-                .map(seg => encodeURIComponent(seg))
-                .join('/');
-
-            const itemContentUrl = `https://graph.microsoft.com/v1.0/sites/${siteData.id}/drive/root:/${encodedPath}:/content`;
-            const res2 = await fetch(itemContentUrl, { headers, cache: 'no-store' });
-            if (!res2.ok) {
-                throw new Error(`No se pudo descargar el Excel desde SharePoint (HTTP ${res2.status}).`);
-            }
-            return await res2.arrayBuffer();
+            throw lastError || new Error('No se pudo descargar la planilla desde Google Sheets. Verifica que esté compartida como "Cualquier persona con el enlace".');
         }
 
         function setSyncButtonsLoading(loading) {
-            const btnSp = document.getElementById('btn-sync-sharepoint');
-            const iconSp = document.getElementById('icon-sync-sp');
-            const textSp = document.getElementById('sync-sp-text');
-            const btnHero = document.getElementById('btn-hero-connect-sp');
+            const btnGs = document.getElementById('btn-sync-gsheet');
+            const iconGs = document.getElementById('icon-sync-gs');
+            const textGs = document.getElementById('sync-gs-text');
+            const btnHero = document.getElementById('btn-hero-connect-gs');
             const btnRefresh = document.getElementById('btn-refresh-report');
             const iconRefresh = document.getElementById('icon-refresh-report');
 
-            if (btnSp) btnSp.disabled = loading;
+            if (btnGs) btnGs.disabled = loading;
             if (btnHero) btnHero.disabled = loading;
             if (btnRefresh) btnRefresh.disabled = loading;
 
             if (loading) {
-                if (iconSp) iconSp.classList.add('animate-spin');
+                if (iconGs) iconGs.classList.add('animate-spin');
                 if (iconRefresh) iconRefresh.classList.add('animate-spin');
-                if (textSp) textSp.textContent = 'Sincronizando...';
+                if (textGs) textGs.textContent = 'Sincronizando...';
             } else {
-                if (iconSp) iconSp.classList.remove('animate-spin');
+                if (iconGs) iconGs.classList.remove('animate-spin');
                 if (iconRefresh) iconRefresh.classList.remove('animate-spin');
-                const connected = SharePointConfig.msalInstance && SharePointConfig.msalInstance.getAllAccounts().length > 0;
-                if (textSp) textSp.textContent = connected ? 'SharePoint Conectado' : 'Conectar SharePoint';
+                if (textGs) textGs.textContent = AppState.records.length > 0 ? 'Google Sheet Conectado' : 'Sincronizar Google Sheet';
             }
         }
 
-        async function syncFromSharePoint({ interactive = false, silentToast = false } = {}) {
-            if (SharePointConfig.isSyncing) return false;
-            SharePointConfig.isSyncing = true;
+        async function syncFromGoogleSheet({ silentToast = false } = {}) {
+            if (GoogleSheetConfig.isSyncing) return false;
+            GoogleSheetConfig.isSyncing = true;
             setSyncButtonsLoading(true);
 
             const errorBox = document.getElementById('upload-error-box');
             const errorText = document.getElementById('upload-error-text');
 
             try {
-                const token = await acquireSharePointToken(interactive);
-                if (!token) {
-                    return false;
-                }
-
-                const arrayBuffer = await downloadExcelBufferFromGraph(token);
+                const { buffer, isCsv } = await downloadBufferFromGoogleSheet();
                 const stamp = new Date().toLocaleTimeString('es-CL', {
                     hour: '2-digit',
                     minute: '2-digit',
                     second: '2-digit'
                 });
 
-                SharePointConfig.lastSourceMode = 'sharepoint';
+                GoogleSheetConfig.lastSourceMode = 'gsheet';
                 processExcelArrayBuffer(
-                    arrayBuffer,
-                    `SharePoint • Seguimiento Online Av, Sav y Tarjetas.xlsx (${stamp})`,
-                    true
+                    buffer,
+                    `Google Sheets (${stamp})`,
+                    true,
+                    isCsv
                 );
 
                 const syncTextEl = document.getElementById('header-sync-text');
                 if (syncTextEl) {
-                    const mins = Number(SharePointConfig.autoRefreshMinutes);
+                    const mins = Number(GoogleSheetConfig.autoRefreshMinutes);
                     syncTextEl.textContent = mins > 0
-                        ? `SharePoint Live (${stamp} • cada ${mins}m)`
-                        : `SharePoint (${stamp})`;
+                        ? `Google Sheets Live (${stamp} • cada ${mins}m)`
+                        : `Google Sheets (${stamp})`;
                 }
 
                 if (!silentToast) {
-                    notifyUser(`Sincronizado con SharePoint (${stamp}).`, 'success');
+                    notifyUser(`Sincronizado con Google Sheets (${stamp}).`, 'success');
                 }
                 return true;
             } catch (err) {
-                console.error('Error sincronizando con SharePoint:', err);
-                const msg = err?.message || 'No se pudo conectar con SharePoint.';
+                console.error('Error sincronizando con Google Sheets:', err);
+                const msg = err?.message || 'No se pudo conectar con Google Sheets.';
+                const badge = document.getElementById('status-badge');
+                if (badge && AppState.records.length === 0) {
+                    badge.textContent = 'Google Sheets • Requiere permiso de lectura';
+                    badge.className = 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-200 dark:border-rose-800';
+                }
                 if (errorBox && errorText && AppState.records.length === 0) {
-                    errorText.textContent = `Error SharePoint: ${msg}`;
+                    errorText.textContent = `Error Google Sheets: ${msg}`;
                     errorBox.classList.remove('hidden');
                 }
                 if (!silentToast) {
-                    notifyUser(`Error SharePoint: ${msg}`, 'error');
+                    notifyUser(`Error Google Sheets: ${msg}`, 'error');
                 }
                 return false;
             } finally {
-                SharePointConfig.isSyncing = false;
+                GoogleSheetConfig.isSyncing = false;
                 setSyncButtonsLoading(false);
             }
         }
 
         function startAutoRefreshTimer() {
-            if (SharePointConfig.timerId) {
-                clearInterval(SharePointConfig.timerId);
-                SharePointConfig.timerId = null;
+            if (GoogleSheetConfig.timerId) {
+                clearInterval(GoogleSheetConfig.timerId);
+                GoogleSheetConfig.timerId = null;
             }
 
-            const minutes = Number(SharePointConfig.autoRefreshMinutes);
+            const minutes = Number(GoogleSheetConfig.autoRefreshMinutes);
             if (!minutes || minutes <= 0) return;
 
             const intervalMs = minutes * 60 * 1000;
-            SharePointConfig.timerId = setInterval(async () => {
+            GoogleSheetConfig.timerId = setInterval(async () => {
                 if (document.hidden) return;
-                if (SharePointConfig.lastSourceMode !== 'sharepoint') return;
-                await syncFromSharePoint({ interactive: false, silentToast: true });
+                if (GoogleSheetConfig.lastSourceMode !== 'gsheet') return;
+                await syncFromGoogleSheet({ silentToast: true });
             }, intervalMs);
         }
 
         async function handleRefreshReportClick() {
-            if (SharePointConfig.lastSourceMode === 'sharepoint' || !AppState.lastLocalBuffer) {
-                const ok = await syncFromSharePoint({ interactive: true, silentToast: false });
+            if (GoogleSheetConfig.lastSourceMode === 'gsheet' || !AppState.lastLocalBuffer) {
+                const ok = await syncFromGoogleSheet({ silentToast: false });
                 if (ok) return;
             }
 
@@ -955,7 +849,8 @@
                 processExcelArrayBuffer(
                     AppState.lastLocalBuffer,
                     `${AppState.lastLocalFileName || 'Archivo Excel'} (Actualizado ${stamp})`,
-                    false
+                    false,
+                    (AppState.lastLocalFileName || '').toLowerCase().endsWith('.csv')
                 );
             } else {
                 const fileInput = document.getElementById('excel-file-input');
@@ -964,24 +859,34 @@
         }
 
         /* =========================================================================
-           PROCESAMIENTO DE EXCEL (SHEETJS)
+           PROCESAMIENTO DE EXCEL / GOOGLE SHEETS (SHEETJS)
            ========================================================================= */
-        function processExcelArrayBuffer(arrayBuffer, sourceLabel, isFromSharePoint = false) {
+        function processExcelArrayBuffer(arrayBuffer, sourceLabel, isFromGoogleSheet = false, forceCsv = false) {
             const errorBox = document.getElementById('upload-error-box');
             const errorText = document.getElementById('upload-error-text');
             if (errorBox) errorBox.classList.add('hidden');
 
             try {
-                const buffer = new Uint8Array(arrayBuffer);
-                const workbook = XLSX.read(buffer, { type: 'array' });
+                let workbook;
+                if (forceCsv) {
+                    const csvText = new TextDecoder('utf-8').decode(new Uint8Array(arrayBuffer));
+                    workbook = XLSX.read(csvText, { type: 'string' });
+                } else {
+                    const buffer = new Uint8Array(arrayBuffer);
+                    workbook = XLSX.read(buffer, { type: 'array' });
+                }
 
                 let sheetName = workbook.SheetNames.find(
                     name => normalizeText(name) === 'vendedores salon'
                 );
 
-                if (!sheetName && sourceLabel.toLowerCase().includes('.csv') && workbook.SheetNames.length === 1) {
-                    sheetName = workbook.SheetNames[0];
+                if (!sheetName && (forceCsv || sourceLabel.toLowerCase().includes('.csv')) && workbook.SheetNames.length === 1) {
+                    sheetName = GoogleSheetConfig.targetSheetName;
                 }
+
+                const actualSheetKey = workbook.SheetNames.find(
+                    name => normalizeText(name) === 'vendedores salon'
+                ) || workbook.SheetNames[0];
 
                 if (!sheetName) {
                     const msg = `No se encontró la hoja "Vendedores Salón". Hojas disponibles: [${workbook.SheetNames.join(', ')}]`;
@@ -993,7 +898,7 @@
                     return;
                 }
 
-                const worksheet = workbook.Sheets[sheetName];
+                const worksheet = workbook.Sheets[actualSheetKey];
                 const matrix = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
 
                 if (!matrix || matrix.length === 0) {
@@ -1067,7 +972,7 @@
                 AppState.corteLabel = corteFromCell || (uniqueDates.length === 1 ? uniqueDates[0] : (uniqueDates.length > 1 ? `${uniqueDates[0]} a ${uniqueDates[uniqueDates.length - 1]}` : ''));
                 AppState.fileName = sourceLabel;
 
-                activateDashboard(sheetName, headerRowIndex + 1, parsedRecords.length, isFromSharePoint);
+                activateDashboard(sheetName, headerRowIndex + 1, parsedRecords.length, isFromGoogleSheet);
                 if (wasAlreadyLoaded) {
                     AppState.filters = prevFilters;
                     populateFilters();
@@ -1076,12 +981,12 @@
                     resetAllFilters();
                 }
 
-                if (!isFromSharePoint) {
+                if (!isFromGoogleSheet) {
                     notifyUser(`Informe cargado: ${parsedRecords.length} registros desde "${sheetName}".`, 'success');
                 }
             } catch (err) {
-                console.error('Error crítico al leer Excel:', err);
-                const msg = `Error al procesar el archivo Excel: ${err.message || 'formato no válido'}.`;
+                console.error('Error crítico al leer datos:', err);
+                const msg = `Error al procesar los datos: ${err.message || 'formato no válido'}.`;
                 if (errorText && errorBox) {
                     errorText.textContent = msg;
                     errorBox.classList.remove('hidden');
@@ -1094,10 +999,10 @@
             if (!file) return;
             const reader = new FileReader();
             reader.onload = function (evt) {
-                SharePointConfig.lastSourceMode = 'local';
+                GoogleSheetConfig.lastSourceMode = 'local';
                 AppState.lastLocalBuffer = evt.target.result;
                 AppState.lastLocalFileName = file.name;
-                processExcelArrayBuffer(evt.target.result, file.name, false);
+                processExcelArrayBuffer(evt.target.result, file.name, false, file.name.toLowerCase().endsWith('.csv'));
             };
             reader.readAsArrayBuffer(file);
         }
@@ -1288,13 +1193,13 @@
             };
         }
 
-        function activateDashboard(sheetName, headerRowNum, recordCount, isFromSharePoint = false) {
+        function activateDashboard(sheetName, headerRowNum, recordCount, isFromGoogleSheet = false) {
             document.getElementById('empty-state-panel').classList.add('hidden');
             document.getElementById('dashboard-main-container').classList.remove('hidden');
 
             const badge = document.getElementById('status-badge');
-            if (isFromSharePoint) {
-                badge.textContent = 'SharePoint Online • Conectado';
+            if (isFromGoogleSheet) {
+                badge.textContent = 'Google Sheets • Conectado';
                 badge.className = 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800';
             } else {
                 badge.textContent = 'Excel Local Cargado';
@@ -2076,18 +1981,18 @@
                 document.documentElement.classList.toggle('dark');
             });
 
-            document.getElementById('btn-sync-sharepoint').addEventListener('click', () => {
-                syncFromSharePoint({ interactive: true, silentToast: false });
+            document.getElementById('btn-sync-gsheet').addEventListener('click', () => {
+                syncFromGoogleSheet({ silentToast: false });
             });
 
-            document.getElementById('btn-hero-connect-sp').addEventListener('click', () => {
-                syncFromSharePoint({ interactive: true, silentToast: false });
+            document.getElementById('btn-hero-connect-gs').addEventListener('click', () => {
+                syncFromGoogleSheet({ silentToast: false });
             });
 
             document.getElementById('auto-refresh-select').addEventListener('change', (e) => {
-                SharePointConfig.autoRefreshMinutes = Number(e.target.value);
+                GoogleSheetConfig.autoRefreshMinutes = Number(e.target.value);
                 startAutoRefreshTimer();
-                const mins = SharePointConfig.autoRefreshMinutes;
+                const mins = GoogleSheetConfig.autoRefreshMinutes;
                 notifyUser(
                     mins > 0
                         ? `Actualización automática configurada cada ${mins} minuto(s).`
@@ -2298,9 +2203,9 @@
                 exportSectionAsPNG('section-detalle-avi', 'Detalle_AVI_Asesores');
             });
 
-            // Intentar conexión silenciosa automática al abrir si ya inició sesión previamente
+            // Carga automática inicial desde Google Sheets y activación del temporizador
             startAutoRefreshTimer();
-            await syncFromSharePoint({ interactive: false, silentToast: true });
+            await syncFromGoogleSheet({ silentToast: true });
         });
     </script>
 </body>
