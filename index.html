@@ -684,6 +684,46 @@
             return String(val).trim();
         }
 
+        function extractCorteFromWorksheet(worksheet, matrix, headerRowIndex) {
+            // 1. Lectura directa de celda B4 en hoja Excel/XLSX
+            if (worksheet && worksheet['B4']) {
+                const rawB4 = worksheet['B4'].w || worksheet['B4'].v;
+                const formatted = formatCorteB4Value(rawB4);
+                if (formatted && !normalizeText(formatted).startsWith('zona')) {
+                    return formatted;
+                }
+            }
+
+            // 2. Posición exacta [3][1] (Fila 4, Columna B) en la matriz
+            if (matrix[3] && matrix[3][1] !== undefined && matrix[3][1] !== null) {
+                const formatted = formatCorteB4Value(matrix[3][1]);
+                if (formatted && !normalizeText(formatted).startsWith('zona')) {
+                    return formatted;
+                }
+            }
+
+            // 3. Respaldo si gviz recortó filas vacías arriba: buscar antes de los encabezados
+            const limitRow = headerRowIndex > 0 ? headerRowIndex : Math.min(matrix.length, 10);
+            for (let r = 0; r < limitRow; r++) {
+                const row = matrix[r] || [];
+                for (let c = 0; c < Math.min(row.length, 6); c++) {
+                    const text = formatCorteB4Value(row[c]);
+                    const norm = normalizeText(text);
+                    if (!text) continue;
+                    if (
+                        norm.startsWith('gestion') ||
+                        norm.startsWith('corte') ||
+                        norm.startsWith('actualizado') ||
+                        /\d{1,2}\/[a-z0-9]{2,4}/i.test(text)
+                    ) {
+                        return text;
+                    }
+                }
+            }
+
+            return '';
+        }
+
         function notifyUser(message, type = 'info') {
             const container = document.getElementById('toast-container');
             const toast = document.createElement('div');
@@ -759,9 +799,10 @@
             const id = GoogleSheetConfig.spreadsheetId;
             const gid = GoogleSheetConfig.gid;
 
+            // Priorizamos export?format=xlsx porque conserva intacta la estructura exacta de filas y celdas (B4)
             const candidateUrls = [
-                `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv&gid=${gid}&t=${cacheBuster}`,
-                `https://docs.google.com/spreadsheets/d/${id}/export?format=xlsx&gid=${gid}&t=${cacheBuster}`
+                `https://docs.google.com/spreadsheets/d/${id}/export?format=xlsx&gid=${gid}&t=${cacheBuster}`,
+                `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv&gid=${gid}&t=${cacheBuster}`
             ];
 
             for (const url of candidateUrls) {
@@ -946,7 +987,7 @@
                 }
 
                 const worksheet = workbook.Sheets[actualSheetKey];
-                const matrix = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+                const matrix = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '', blankrows: true });
 
                 if (!matrix || matrix.length === 0) {
                     const msg = `La hoja "${sheetName}" está vacía.`;
@@ -956,15 +997,6 @@
                     }
                     notifyUser(msg, 'warning');
                     return;
-                }
-
-                // Celda B4 -> fila índice 3, columna índice 1
-                let corteFromCell = '';
-                if (matrix[3] && matrix[3][1] !== undefined && matrix[3][1] !== null) {
-                    const b4Formatted = formatCorteB4Value(matrix[3][1]);
-                    if (b4Formatted && !normalizeText(b4Formatted).startsWith('zona')) {
-                        corteFromCell = b4Formatted;
-                    }
                 }
 
                 let headerRowIndex = -1;
@@ -996,6 +1028,8 @@
                     notifyUser(msg, 'error');
                     return;
                 }
+
+                const corteFromCell = extractCorteFromWorksheet(worksheet, matrix, headerRowIndex);
 
                 const headers = matrix[headerRowIndex].map(h => normalizeText(h));
                 const dataRows = matrix.slice(headerRowIndex + 1);
