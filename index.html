@@ -439,11 +439,11 @@
                                 <th data-sup-sort="efectividadTRPct" class="sup-sortable py-2.5 px-3 text-center cursor-pointer hover:bg-[#133863]">
                                     % Efectividad TR <span class="sort-indicator text-blue-200">↕</span>
                                 </th>
+                                <th data-sup-sort="efectSavPct" class="sup-sortable py-2.5 px-3 text-center cursor-pointer hover:bg-[#133863]">
+                                    % Efect Sav <span class="sort-indicator text-blue-200">↕</span>
+                                </th>
                                 <th data-sup-sort="clientesDisponible" class="sup-sortable py-2.5 px-3 text-center cursor-pointer hover:bg-[#133863]">
                                     # Clientes con Disponible <span class="sort-indicator text-blue-200">↕</span>
-                                </th>
-                                <th data-sup-sort="efectividadPct" class="sup-sortable py-2.5 px-3 text-center cursor-pointer hover:bg-[#133863]">
-                                    % Efect (Av-Sav) <span class="sort-indicator text-blue-200">↕</span>
                                 </th>
                                 <th data-sup-sort="ventaTotal" class="sup-sortable py-2.5 px-3 text-center cursor-pointer hover:bg-[#133863]">
                                     AV+SAV $ <span class="sort-indicator text-blue-200">↕</span>
@@ -507,11 +507,11 @@
                                 <th data-avi-sort="efectividadTRPct" class="avi-sortable py-2.5 px-3 text-center cursor-pointer hover:bg-[#133863]">
                                     % Efectividad TR <span class="sort-indicator text-blue-200">↕</span>
                                 </th>
+                                <th data-avi-sort="efectSavPct" class="avi-sortable py-2.5 px-3 text-center cursor-pointer hover:bg-[#133863]">
+                                    % Efect Sav <span class="sort-indicator text-blue-200">↕</span>
+                                </th>
                                 <th data-avi-sort="clientesDisponible" class="avi-sortable py-2.5 px-3 text-center cursor-pointer hover:bg-[#133863]">
                                     # Clientes con Disponible <span class="sort-indicator text-blue-200">↕</span>
-                                </th>
-                                <th data-avi-sort="efectividadPct" class="avi-sortable py-2.5 px-3 text-center cursor-pointer hover:bg-[#133863]">
-                                    % Efect (Av-Sav) <span class="sort-indicator text-blue-200">↕</span>
                                 </th>
                                 <th data-avi-sort="ventaTotal" class="avi-sortable py-2.5 px-3 text-center cursor-pointer hover:bg-[#133863]">
                                     AV+SAV $ <span class="sort-indicator text-blue-200">↕</span>
@@ -571,6 +571,9 @@
 
         const AppState = {
             records: [],
+            sucursalTotals: new Map(), // "ZONA||SUCURSAL" -> { label, aceptPct, efectividadTRPct, efectSavPct }
+            zonaTotals: new Map(),     // "ZONA" -> { label, aceptPct, efectividadTRPct, efectSavPct }
+            generalTotal: null,        // { label, aceptPct, efectividadTRPct, efectSavPct }
             filteredRecords: [],
             groupedVendors: [],
             supervisorRows: [],
@@ -1055,7 +1058,8 @@
                 const headers = matrix[headerRowIndex].map(h => normalizeText(h));
                 const dataRows = matrix.slice(headerRowIndex + 1);
 
-                const { parsedRecords, hasDateCol, uniqueDates } = extractValidRecords(dataRows, headers, corteFromCell);
+                const { parsedRecords, sucursalTotals, zonaTotals, generalTotal, hasDateCol, uniqueDates } =
+                    extractValidRecords(dataRows, headers, corteFromCell);
 
                 if (parsedRecords.length === 0) {
                     const msg = `Se detectaron encabezados en la fila ${headerRowIndex + 1}, pero no se encontraron filas válidas.`;
@@ -1071,6 +1075,9 @@
                 const prevFilters = { ...AppState.filters };
 
                 AppState.records = parsedRecords;
+                AppState.sucursalTotals = sucursalTotals;
+                AppState.zonaTotals = zonaTotals;
+                AppState.generalTotal = generalTotal;
                 AppState.hasDateColumn = hasDateCol;
                 AppState.corteLabel = corteFromCell || (uniqueDates.length === 1 ? uniqueDates[0] : (uniqueDates.length > 1 ? `${uniqueDates[0]} a ${uniqueDates[uniqueDates.length - 1]}` : ''));
                 AppState.fileName = sourceLabel;
@@ -1134,6 +1141,7 @@
             const idxNumSAV = findColIndex(['# sav', 'q sav', 'n sav', 'cantidad sav']);
             const idxMontoAvances = findColIndex(['$ avances', 'monto avances', 'venta avances']);
             const idxMontoSAV = findColIndex(['$ sav', 'monto sav', 'venta sav']);
+            const idxEfectSav = findColIndex(['% efect sav', 'efect sav']);
 
             const idxOfertasTR = findColIndex(['total ofertas tr', 'ofertas tr', 'q ofertas tr']);
             const idxAceptadasTR = findColIndex(['of. aceptadas tr', 'of aceptadas tr', 'aceptadas ofertas tr', 'ofertas aceptadas tr']);
@@ -1150,19 +1158,13 @@
                 'ofertas av/sav',
                 'ofertas av sav'
             ]);
-            const idxEfectividadPct = findColIndex([
-                '% efect (av-sav)',
-                '% efect(av-sav)',
-                '% efectividad av-sav',
-                '% efectividad (av-sav)',
-                '% efect av/sav',
-                'efect (av-sav)',
-                '% efectividad'
-            ]);
 
             let hasDateCol = false;
             const dateSet = new Set();
             const parsedRecords = [];
+            const sucursalTotals = new Map();
+            const zonaTotals = new Map();
+            let generalTotal = null;
 
             for (let i = 0; i < dataRows.length; i++) {
                 const row = dataRows[i];
@@ -1170,10 +1172,52 @@
                     continue;
                 }
 
+                const rawZonaStr = idxZona !== -1 ? String(row[idxZona] ?? '').trim() : '';
+                const normZona = normalizeText(rawZonaStr);
+                const rawSucursalStr = idxSucursal !== -1 ? String(row[idxSucursal] ?? '').trim() : '';
+                const normSucursal = normalizeText(rawSucursalStr);
+
+                const rowAceptPct = idxAceptPct !== -1 ? parsePctCell(row[idxAceptPct]) : 0;
+                const rowEfectTRPct = idxEfectividadTR !== -1 ? parsePctCell(row[idxEfectividadTR]) : 0;
+                const rowEfectSavPct = idxEfectSav !== -1 ? parsePctCell(row[idxEfectSav]) : 0;
+
+                // Detectar filas de Total de Sucursal (ej. "Total TEMUCO")
+                if (normSucursal.startsWith('total ')) {
+                    const cleanSucName = rawSucursalStr.replace(/^total\s+/i, '').trim().toUpperCase();
+                    const cleanZonaName = (rawZonaStr || 'SIN ZONA').toUpperCase();
+                    const payload = {
+                        label: rawSucursalStr.trim(),
+                        aceptPct: rowAceptPct,
+                        efectividadTRPct: rowEfectTRPct,
+                        efectSavPct: rowEfectSavPct
+                    };
+                    sucursalTotals.set(`${cleanZonaName}||${cleanSucName}`, payload);
+                    if (!sucursalTotals.has(`*||${cleanSucName}`)) {
+                        sucursalTotals.set(`*||${cleanSucName}`, payload);
+                    }
+                    continue;
+                }
+
+                // Detectar filas de Total de Zona ("Total SUR") o Total General
+                if (normZona.startsWith('total ')) {
+                    const cleanZonaName = rawZonaStr.replace(/^total\s+/i, '').trim().toUpperCase();
+                    const payload = {
+                        label: rawZonaStr.trim(),
+                        aceptPct: rowAceptPct,
+                        efectividadTRPct: rowEfectTRPct,
+                        efectSavPct: rowEfectSavPct
+                    };
+                    if (normZona === 'total general') {
+                        generalTotal = payload;
+                    } else {
+                        zonaTotals.set(cleanZonaName, payload);
+                    }
+                    continue;
+                }
+
                 const rawNombreCell = idxNombre !== -1 ? row[idxNombre] : '';
                 const rawNombreStr = String(rawNombreCell ?? '').trim();
                 const normNombre = normalizeText(rawNombreStr);
-
                 const cajeroStr = idxCajero !== -1 ? String(row[idxCajero] ?? '').trim() : '';
 
                 if (
@@ -1195,21 +1239,11 @@
                         : `(Sin nombre / Registro ${i + 1})`;
                 }
 
-                const zona = idxZona !== -1 && String(row[idxZona] ?? '').trim() !== ''
-                    ? String(row[idxZona]).trim().toUpperCase()
-                    : 'SIN ZONA';
-
-                const sucursal = idxSucursal !== -1 && String(row[idxSucursal] ?? '').trim() !== ''
-                    ? String(row[idxSucursal]).trim().toUpperCase()
-                    : 'SIN SUCURSAL';
-
-                if (normalizeText(zona).startsWith('total ')) {
-                    continue;
-                }
+                const zona = rawZonaStr !== '' ? rawZonaStr.toUpperCase() : 'SIN ZONA';
+                const sucursal = rawSucursalStr !== '' ? rawSucursalStr.toUpperCase() : 'SIN SUCURSAL';
 
                 const rawSupervisorStr = idxSupervisor !== -1 ? String(row[idxSupervisor] ?? '').trim() : '';
                 const normSupervisor = normalizeText(rawSupervisorStr);
-
                 if (normSupervisor.startsWith('total ') || normSupervisor === 'total') {
                     continue;
                 }
@@ -1223,9 +1257,7 @@
                     normSupervisor === 'null' ||
                     normSupervisor === '-';
 
-                const supervisor = isBlankSupervisor
-                    ? 'SIN SUPERVISOR'
-                    : rawSupervisorStr.toUpperCase();
+                const supervisor = isBlankSupervisor ? 'SIN SUPERVISOR' : rawSupervisorStr.toUpperCase();
 
                 let fechaVal = '';
                 if (idxFecha !== -1) {
@@ -1249,31 +1281,8 @@
                 const activadasTR = idxActivadasTR !== -1 ? parseNumberFlexible(row[idxActivadasTR]) : 0;
                 const clientesDisponible = idxClientesDisponible !== -1 ? parseNumberFlexible(row[idxClientesDisponible]) : 0;
 
-                let aceptPct = 0;
-                if (idxAceptPct !== -1 && row[idxAceptPct] !== '' && row[idxAceptPct] !== null && row[idxAceptPct] !== undefined) {
-                    aceptPct = parsePctCell(row[idxAceptPct]);
-                } else if (ofertasTR > 0 && aceptadasTR > 0) {
-                    aceptPct = (aceptadasTR / ofertasTR) * 100;
-                } else if (ofertasTR > 0 && activadasTR > 0) {
-                    aceptPct = (activadasTR / ofertasTR) * 100;
-                }
-
-                let efectividadTRPct = 0;
-                if (idxEfectividadTR !== -1 && row[idxEfectividadTR] !== '' && row[idxEfectividadTR] !== null && row[idxEfectividadTR] !== undefined) {
-                    efectividadTRPct = parsePctCell(row[idxEfectividadTR]);
-                } else if (aceptadasTR > 0 && activadasTR > 0) {
-                    efectividadTRPct = (activadasTR / aceptadasTR) * 100;
-                }
-
                 const ventaTotal = montoAvances + montoSAV;
                 const cantidadTotal = numSAV + numAvances;
-
-                let efectividadPct = 0;
-                if (idxEfectividadPct !== -1 && row[idxEfectividadPct] !== '' && row[idxEfectividadPct] !== null && row[idxEfectividadPct] !== undefined) {
-                    efectividadPct = parsePctCell(row[idxEfectividadPct]);
-                } else if (clientesDisponible > 0 && cantidadTotal > 0) {
-                    efectividadPct = (cantidadTotal / clientesDisponible) * 100;
-                }
 
                 parsedRecords.push({
                     nombre: displayNombre,
@@ -1289,10 +1298,10 @@
                     ofertasTR,
                     aceptadasTR,
                     activadasTR,
-                    aceptPct,
-                    efectividadTRPct,
+                    aceptPct: rowAceptPct,
+                    efectividadTRPct: rowEfectTRPct,
+                    efectSavPct: rowEfectSavPct,
                     clientesDisponible,
-                    efectividadPct,
                     ventaTotal,
                     cantidadTotal
                 });
@@ -1300,8 +1309,62 @@
 
             return {
                 parsedRecords,
+                sucursalTotals,
+                zonaTotals,
+                generalTotal,
                 hasDateCol,
                 uniqueDates: Array.from(dateSet)
+            };
+        }
+
+        /**
+         * Obtiene directamente el valor de la fila "Total <SUCURSAL>" (ej. "Total TEMUCO")
+         * sin calcular promedios ni divisiones. Si hay múltiples sucursales/zonas, usa el total
+         * de la zona o el total general del archivo.
+         */
+        function resolveBranchTotalRates(zonaFilter, sucursalFilter, rows) {
+            if (sucursalFilter && sucursalFilter !== 'ALL') {
+                const zKey = zonaFilter && zonaFilter !== 'ALL' ? `${zonaFilter}||${sucursalFilter}` : null;
+                if (zKey && AppState.sucursalTotals.has(zKey)) {
+                    return AppState.sucursalTotals.get(zKey);
+                }
+                const anyKey = `*||${sucursalFilter}`;
+                if (AppState.sucursalTotals.has(anyKey)) {
+                    return AppState.sucursalTotals.get(anyKey);
+                }
+            }
+
+            const uniqueSucs = [...new Set((rows || []).map(r => r.sucursal).filter(Boolean))];
+            if (uniqueSucs.length === 1) {
+                const onlySuc = uniqueSucs[0];
+                const uniqueZonas = [...new Set(rows.map(r => r.zona).filter(Boolean))];
+                const zKey = uniqueZonas.length === 1 ? `${uniqueZonas[0]}||${onlySuc}` : null;
+                if (zKey && AppState.sucursalTotals.has(zKey)) {
+                    return AppState.sucursalTotals.get(zKey);
+                }
+                if (AppState.sucursalTotals.has(`*||${onlySuc}`)) {
+                    return AppState.sucursalTotals.get(`*||${onlySuc}`);
+                }
+            }
+
+            if (zonaFilter && zonaFilter !== 'ALL' && AppState.zonaTotals.has(zonaFilter)) {
+                return AppState.zonaTotals.get(zonaFilter);
+            }
+
+            const uniqueZonas = [...new Set((rows || []).map(r => r.zona).filter(Boolean))];
+            if (uniqueZonas.length === 1 && AppState.zonaTotals.has(uniqueZonas[0])) {
+                return AppState.zonaTotals.get(uniqueZonas[0]);
+            }
+
+            if (AppState.generalTotal) {
+                return AppState.generalTotal;
+            }
+
+            return {
+                label: 'Total',
+                aceptPct: 0,
+                efectividadTRPct: 0,
+                efectSavPct: 0
             };
         }
 
@@ -1437,11 +1500,7 @@
                         activadasTR: 0,
                         clientesDisponible: 0,
                         ventaTotal: 0,
-                        cantidadTotal: 0,
-                        pctSum: 0,
-                        efectTRSum: 0,
-                        efectPctSum: 0,
-                        rowCount: 0
+                        cantidadTotal: 0
                     });
                 }
 
@@ -1454,35 +1513,15 @@
                 entry.clientesDisponible += r.clientesDisponible;
                 entry.ventaTotal += r.ventaTotal;
                 entry.cantidadTotal += r.cantidadTotal;
-                entry.pctSum += r.aceptPct;
-                entry.efectTRSum += r.efectividadTRPct;
-                entry.efectPctSum += r.efectividadPct;
-                entry.rowCount += 1;
             }
 
             return Array.from(map.values()).map(item => {
-                let aceptacionPct = 0;
-                if (item.aceptadasTR > 0 && item.ofertasTR > 0) {
-                    aceptacionPct = (item.aceptadasTR / item.ofertasTR) * 100;
-                } else if (item.pctSum > 0 && item.rowCount > 0) {
-                    aceptacionPct = item.pctSum / item.rowCount;
-                } else if (item.ofertasTR > 0 && item.activadasTR > 0) {
-                    aceptacionPct = (item.activadasTR / item.ofertasTR) * 100;
-                }
-
-                let efectividadTRPct = 0;
-                if (item.efectTRSum > 0 && item.rowCount > 0) {
-                    efectividadTRPct = item.efectTRSum / item.rowCount;
-                } else if (item.aceptadasTR > 0 && item.activadasTR > 0) {
-                    efectividadTRPct = (item.activadasTR / item.aceptadasTR) * 100;
-                }
-
-                let efectividadPct = 0;
-                if (item.efectPctSum > 0 && item.rowCount > 0) {
-                    efectividadPct = item.efectPctSum / item.rowCount;
-                } else if (item.clientesDisponible > 0 && item.cantidadTotal > 0) {
-                    efectividadPct = (item.cantidadTotal / item.clientesDisponible) * 100;
-                }
+                const firstSuc = Array.from(item.sucursales)[0] || 'ALL';
+                const branchRate = resolveBranchTotalRates(
+                    AppState.filters.zona,
+                    AppState.filters.sucursal !== 'ALL' ? AppState.filters.sucursal : (item.sucursales.size === 1 ? firstSuc : 'ALL'),
+                    rows
+                );
 
                 return {
                     nombre: item.nombre,
@@ -1491,10 +1530,10 @@
                     ofertasTR: item.ofertasTR,
                     aceptadasTR: item.aceptadasTR,
                     activadasTR: item.activadasTR,
-                    aceptacionPct,
-                    efectividadTRPct,
+                    aceptacionPct: branchRate.aceptPct,
+                    efectividadTRPct: branchRate.efectividadTRPct,
+                    efectSavPct: branchRate.efectSavPct,
                     clientesDisponible: item.clientesDisponible,
-                    efectividadPct,
                     ventaTotal: item.ventaTotal,
                     cantidadTotal: item.cantidadTotal
                 };
@@ -1509,65 +1548,43 @@
                 if (!map.has(key)) {
                     map.set(key, {
                         supervisor: r.supervisor,
+                        sucursales: new Set([r.sucursal]),
                         ofertasTR: 0,
                         aceptadasTR: 0,
                         activadasTR: 0,
                         clientesDisponible: 0,
                         ventaTotal: 0,
-                        cantidadTotal: 0,
-                        pctSum: 0,
-                        efectTRSum: 0,
-                        efectPctSum: 0,
-                        rowCount: 0
+                        cantidadTotal: 0
                     });
                 }
 
                 const entry = map.get(key);
+                entry.sucursales.add(r.sucursal);
                 entry.ofertasTR += r.ofertasTR;
                 entry.aceptadasTR += r.aceptadasTR;
                 entry.activadasTR += r.activadasTR;
                 entry.clientesDisponible += r.clientesDisponible;
                 entry.ventaTotal += r.ventaTotal;
                 entry.cantidadTotal += r.cantidadTotal;
-                entry.pctSum += r.aceptPct;
-                entry.efectTRSum += r.efectividadTRPct;
-                entry.efectPctSum += r.efectividadPct;
-                entry.rowCount += 1;
             }
 
             return Array.from(map.values()).map(item => {
-                let aceptacionPct = 0;
-                if (item.aceptadasTR > 0 && item.ofertasTR > 0) {
-                    aceptacionPct = (item.aceptadasTR / item.ofertasTR) * 100;
-                } else if (item.pctSum > 0 && item.rowCount > 0) {
-                    aceptacionPct = item.pctSum / item.rowCount;
-                } else if (item.ofertasTR > 0 && item.activadasTR > 0) {
-                    aceptacionPct = (item.activadasTR / item.ofertasTR) * 100;
-                }
-
-                let efectividadTRPct = 0;
-                if (item.efectTRSum > 0 && item.rowCount > 0) {
-                    efectividadTRPct = item.efectTRSum / item.rowCount;
-                } else if (item.aceptadasTR > 0 && item.activadasTR > 0) {
-                    efectividadTRPct = (item.activadasTR / item.aceptadasTR) * 100;
-                }
-
-                let efectividadPct = 0;
-                if (item.efectPctSum > 0 && item.rowCount > 0) {
-                    efectividadPct = item.efectPctSum / item.rowCount;
-                } else if (item.clientesDisponible > 0 && item.cantidadTotal > 0) {
-                    efectividadPct = (item.cantidadTotal / item.clientesDisponible) * 100;
-                }
+                const firstSuc = Array.from(item.sucursales)[0] || 'ALL';
+                const branchRate = resolveBranchTotalRates(
+                    AppState.filters.zona,
+                    AppState.filters.sucursal !== 'ALL' ? AppState.filters.sucursal : (item.sucursales.size === 1 ? firstSuc : 'ALL'),
+                    rows
+                );
 
                 return {
                     supervisor: item.supervisor,
                     ofertasTR: item.ofertasTR,
                     aceptadasTR: item.aceptadasTR,
                     activadasTR: item.activadasTR,
-                    aceptacionPct,
-                    efectividadTRPct,
+                    aceptacionPct: branchRate.aceptPct,
+                    efectividadTRPct: branchRate.efectividadTRPct,
+                    efectSavPct: branchRate.efectSavPct,
                     clientesDisponible: item.clientesDisponible,
-                    efectividadPct,
                     ventaTotal: item.ventaTotal,
                     cantidadTotal: item.cantidadTotal
                 };
@@ -1663,30 +1680,16 @@
 
             const activadasTR = rows.reduce((sum, r) => sum + r.activadasTR, 0);
             const ofertasTR = rows.reduce((sum, r) => sum + r.ofertasTR, 0);
-            const aceptadasTR = rows.reduce((sum, r) => sum + r.aceptadasTR, 0);
             const ofertasAVSAV = rows.reduce((sum, r) => sum + r.clientesDisponible, 0);
             const ventaTotal = rows.reduce((sum, r) => sum + r.ventaTotal, 0);
 
-            let pctAceptacion = 0;
-            let detailPct = 'Promedio % Aceptacion TR.';
-            if (aceptadasTR > 0 && ofertasTR > 0) {
-                pctAceptacion = (aceptadasTR / ofertasTR) * 100;
-                detailPct = `${formatInt(aceptadasTR)} Acept. / ${formatInt(ofertasTR)} Ofertas`;
-            } else if (rows.length > 0) {
-                pctAceptacion = rows.reduce((sum, r) => sum + r.aceptPct, 0) / rows.length;
-                detailPct = 'Promedio columna % Aceptacion TR.';
-            }
-
-            const pctEfectividad = rows.length > 0
-                ? rows.reduce((sum, r) => sum + r.efectividadPct, 0) / rows.length
-                : 0;
+            const branchRate = resolveBranchTotalRates(AppState.filters.zona, AppState.filters.sucursal, rows);
 
             document.getElementById('header-activadas-tr').textContent = formatInt(activadasTR);
             document.getElementById('header-ofertas-tr').textContent = formatInt(ofertasTR);
-            document.getElementById('header-aceptacion-pct').textContent = formatPct(pctAceptacion);
-            document.getElementById('header-aceptacion-detail').textContent = detailPct;
+            document.getElementById('header-aceptacion-pct').textContent = formatPct(branchRate.aceptPct);
             document.getElementById('header-ofertas-avsav').textContent = formatInt(ofertasAVSAV);
-            document.getElementById('header-efectividad-pct').textContent = formatPct(pctEfectividad);
+            document.getElementById('header-efectividad-pct').textContent = formatPct(branchRate.efectividadTRPct);
             document.getElementById('header-venta-total').textContent = formatCLP(ventaTotal);
         }
 
@@ -1705,22 +1708,19 @@
                 return;
             }
 
-            const avgPctGroup = pool.reduce((s, v) => s + v.aceptacionPct, 0) / pool.length;
             const totalOfertasGroup = pool.reduce((s, v) => s + v.ofertasTR, 0);
             const totalActivadasGroup = pool.reduce((s, v) => s + v.activadasTR, 0);
 
             const bestAccept = [...pool].sort((a, b) => {
-                if (Math.abs(b.aceptacionPct - a.aceptacionPct) > 0.0001) return b.aceptacionPct - a.aceptacionPct;
-                return b.activadasTR - a.activadasTR;
+                if (b.activadasTR !== a.activadasTR) return b.activadasTR - a.activadasTR;
+                return b.ofertasTR - a.ofertasTR;
             })[0];
 
-            const diff1 = bestAccept.aceptacionPct - avgPctGroup;
             document.getElementById('kpi1-nombre').textContent = bestAccept.nombre;
             document.getElementById('kpi1-supervisor').textContent = `Sup: ${bestAccept.supervisorText}`;
             document.getElementById('kpi1-supervisor').title = bestAccept.supervisorText;
             document.getElementById('kpi1-pct').textContent = formatPct(bestAccept.aceptacionPct);
             document.getElementById('kpi1-cantidad').textContent = `${formatInt(bestAccept.activadasTR)} Act. / ${formatInt(bestAccept.ofertasTR)} Of.`;
-            document.getElementById('kpi1-delta').textContent = `${diff1 >= 0 ? '+' : ''}${diff1.toFixed(1)}% vs prom`;
             document.getElementById('kpi1-context').textContent = `Activadas TR: ${formatInt(bestAccept.activadasTR)} | Acept: ${formatPct(bestAccept.aceptacionPct)}`;
 
             const mostOffers = [...pool].sort((a, b) => {
@@ -1738,22 +1738,20 @@
             document.getElementById('kpi2-context').textContent = `Ofertas TR: ${formatInt(mostOffers.ofertasTR)} | Acept: ${formatPct(mostOffers.aceptacionPct)}`;
 
             const lowestAccept = [...pool].sort((a, b) => {
-                if (Math.abs(a.aceptacionPct - b.aceptacionPct) > 0.0001) return a.aceptacionPct - b.aceptacionPct;
-                return a.activadasTR - b.activadasTR;
+                if (a.activadasTR !== b.activadasTR) return a.activadasTR - b.activadasTR;
+                return b.ofertasTR - a.ofertasTR;
             })[0];
 
-            const diff3 = lowestAccept.aceptacionPct - avgPctGroup;
             document.getElementById('kpi3-nombre').textContent = lowestAccept.nombre;
             document.getElementById('kpi3-supervisor').textContent = `Sup: ${lowestAccept.supervisorText}`;
             document.getElementById('kpi3-supervisor').title = lowestAccept.supervisorText;
             document.getElementById('kpi3-pct').textContent = formatPct(lowestAccept.aceptacionPct);
             document.getElementById('kpi3-cantidad').textContent = `${formatInt(lowestAccept.activadasTR)} Act. / ${formatInt(lowestAccept.ofertasTR)} Of.`;
-            document.getElementById('kpi3-delta').textContent = `${diff3 >= 0 ? '+' : ''}${diff3.toFixed(1)}% vs prom`;
             document.getElementById('kpi3-context').textContent = `Activadas TR: ${formatInt(lowestAccept.activadasTR)} | Acept: ${formatPct(lowestAccept.aceptacionPct)}`;
 
             const mostActivadas = [...pool].sort((a, b) => {
                 if (b.activadasTR !== a.activadasTR) return b.activadasTR - a.activadasTR;
-                return b.aceptacionPct - a.aceptacionPct;
+                return b.ofertasTR - a.ofertasTR;
             })[0];
 
             const shareActivadas = totalActivadasGroup > 0 ? (mostActivadas.activadasTR / totalActivadasGroup) * 100 : 0;
@@ -1814,8 +1812,8 @@
                         </td>
                         <td class="py-3 px-3 text-center font-bold text-slate-800 dark:text-slate-200 tabular-nums">${formatInt(s.aceptadasTR)}</td>
                         <td class="py-3 px-3 text-center font-semibold text-indigo-700 dark:text-indigo-300 tabular-nums">${formatPct(s.efectividadTRPct)}</td>
+                        <td class="py-3 px-3 text-center font-semibold text-sky-700 dark:text-sky-300 tabular-nums">${formatPct(s.efectSavPct)}</td>
                         <td class="py-3 px-3 text-center font-bold text-slate-800 dark:text-slate-200 tabular-nums">${formatInt(s.clientesDisponible)}</td>
-                        <td class="py-3 px-3 text-center font-semibold text-sky-700 dark:text-sky-300 tabular-nums">${formatPct(s.efectividadPct)}</td>
                         <td class="py-3 px-3 text-center font-bold text-slate-800 dark:text-slate-100 tabular-nums">${formatCLP(s.ventaTotal)}</td>
                         <td class="py-3 px-3 text-center font-semibold text-slate-700 dark:text-slate-300 tabular-nums">${formatInt(s.cantidadTotal)}</td>
                     </tr>
@@ -1828,20 +1826,18 @@
             const sumClientesDisp = list.reduce((s, v) => s + v.clientesDisponible, 0);
             const sumVenta = list.reduce((s, v) => s + v.ventaTotal, 0);
             const sumCantidad = list.reduce((s, v) => s + v.cantidadTotal, 0);
-            const avgPct = list.reduce((s, v) => s + v.aceptacionPct, 0) / total;
-            const avgEfectTRPct = list.reduce((s, v) => s + v.efectividadTRPct, 0) / total;
-            const avgEfectPct = list.reduce((s, v) => s + v.efectividadPct, 0) / total;
+            const branchRate = resolveBranchTotalRates(AppState.filters.zona, AppState.filters.sucursal, AppState.records);
 
             tfoot.innerHTML = `
                 <tr>
-                    <td class="py-3.5 px-3 text-center uppercase text-xs tracking-wider">Total (${total})</td>
+                    <td class="py-3.5 px-3 text-center uppercase text-xs tracking-wider">${branchRate.label || `Total (${total})`}</td>
                     <td class="py-3.5 px-3 text-center text-blue-800 dark:text-blue-300 tabular-nums">${formatInt(sumOfertas)}</td>
                     <td class="py-3.5 px-3 text-center tabular-nums">${formatInt(sumActivadas)}</td>
-                    <td class="py-3.5 px-3 text-center tabular-nums">${formatPct(avgPct)}</td>
+                    <td class="py-3.5 px-3 text-center tabular-nums">${formatPct(branchRate.aceptPct)}</td>
                     <td class="py-3.5 px-3 text-center tabular-nums">${formatInt(sumAceptadasTR)}</td>
-                    <td class="py-3.5 px-3 text-center tabular-nums">${formatPct(avgEfectTRPct)}</td>
+                    <td class="py-3.5 px-3 text-center tabular-nums">${formatPct(branchRate.efectividadTRPct)}</td>
+                    <td class="py-3.5 px-3 text-center tabular-nums">${formatPct(branchRate.efectSavPct)}</td>
                     <td class="py-3.5 px-3 text-center tabular-nums">${formatInt(sumClientesDisp)}</td>
-                    <td class="py-3.5 px-3 text-center tabular-nums">${formatPct(avgEfectPct)}</td>
                     <td class="py-3.5 px-3 text-center tabular-nums">${formatCLP(sumVenta)}</td>
                     <td class="py-3.5 px-3 text-center tabular-nums">${formatInt(sumCantidad)}</td>
                 </tr>
@@ -1911,8 +1907,8 @@
                         </td>
                         <td class="py-3 px-3 text-center font-bold text-slate-800 dark:text-slate-200 tabular-nums">${formatInt(v.aceptadasTR)}</td>
                         <td class="py-3 px-3 text-center font-semibold text-indigo-700 dark:text-indigo-300 tabular-nums">${formatPct(v.efectividadTRPct)}</td>
+                        <td class="py-3 px-3 text-center font-semibold text-sky-700 dark:text-sky-300 tabular-nums">${formatPct(v.efectSavPct)}</td>
                         <td class="py-3 px-3 text-center font-bold text-slate-800 dark:text-slate-200 tabular-nums">${formatInt(v.clientesDisponible)}</td>
-                        <td class="py-3 px-3 text-center font-semibold text-sky-700 dark:text-sky-300 tabular-nums">${formatPct(v.efectividadPct)}</td>
                         <td class="py-3 px-3 text-center font-bold text-slate-800 dark:text-slate-100 tabular-nums">${formatCLP(v.ventaTotal)}</td>
                         <td class="py-3 px-3 text-center font-semibold text-slate-700 dark:text-slate-300 tabular-nums">${formatInt(v.cantidadTotal)}</td>
                     </tr>
@@ -1925,21 +1921,19 @@
             const sumClientesDisp = list.reduce((s, v) => s + v.clientesDisponible, 0);
             const sumVenta = list.reduce((s, v) => s + v.ventaTotal, 0);
             const sumCantidad = list.reduce((s, v) => s + v.cantidadTotal, 0);
-            const avgPct = list.reduce((s, v) => s + v.aceptacionPct, 0) / total;
-            const avgEfectTRPct = list.reduce((s, v) => s + v.efectividadTRPct, 0) / total;
-            const avgEfectPct = list.reduce((s, v) => s + v.efectividadPct, 0) / total;
+            const branchRate = resolveBranchTotalRates(AppState.filters.zona, AppState.filters.sucursal, AppState.filteredRecords);
 
             tfoot.innerHTML = `
                 <tr>
-                    <td class="py-3.5 px-3 text-center uppercase text-xs tracking-wider">Total (${total})</td>
+                    <td class="py-3.5 px-3 text-center uppercase text-xs tracking-wider">${branchRate.label || `Total (${total})`}</td>
                     <td class="py-3.5 px-3 text-center text-slate-400">-</td>
                     <td class="py-3.5 px-3 text-center text-blue-800 dark:text-blue-300 tabular-nums">${formatInt(sumOfertas)}</td>
                     <td class="py-3.5 px-3 text-center tabular-nums">${formatInt(sumActivadas)}</td>
-                    <td class="py-3.5 px-3 text-center tabular-nums">${formatPct(avgPct)}</td>
+                    <td class="py-3.5 px-3 text-center tabular-nums">${formatPct(branchRate.aceptPct)}</td>
                     <td class="py-3.5 px-3 text-center tabular-nums">${formatInt(sumAceptadasTR)}</td>
-                    <td class="py-3.5 px-3 text-center tabular-nums">${formatPct(avgEfectTRPct)}</td>
+                    <td class="py-3.5 px-3 text-center tabular-nums">${formatPct(branchRate.efectividadTRPct)}</td>
+                    <td class="py-3.5 px-3 text-center tabular-nums">${formatPct(branchRate.efectSavPct)}</td>
                     <td class="py-3.5 px-3 text-center tabular-nums">${formatInt(sumClientesDisp)}</td>
-                    <td class="py-3.5 px-3 text-center tabular-nums">${formatPct(avgEfectPct)}</td>
                     <td class="py-3.5 px-3 text-center tabular-nums">${formatCLP(sumVenta)}</td>
                     <td class="py-3.5 px-3 text-center tabular-nums">${formatInt(sumCantidad)}</td>
                 </tr>
@@ -2000,10 +1994,8 @@
 
             const top5LowAccept = [...sourceLowAccept]
                 .sort((a, b) => {
-                    const scoreA = a.ofertasTR * Math.max(0, 100 - a.aceptacionPct);
-                    const scoreB = b.ofertasTR * Math.max(0, 100 - b.aceptacionPct);
-                    if (scoreB !== scoreA) return scoreB - scoreA;
-                    return b.ofertasTR - a.ofertasTR;
+                    if (b.ofertasTR !== a.ofertasTR) return b.ofertasTR - a.ofertasTR;
+                    return a.activadasTR - b.activadasTR;
                 })
                 .slice(0, 5);
 
