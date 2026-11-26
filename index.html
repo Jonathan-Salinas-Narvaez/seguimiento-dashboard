@@ -433,6 +433,12 @@
                                 <th data-sup-sort="aceptacionPct" class="sup-sortable py-2.5 px-3 text-center cursor-pointer hover:bg-[#133863]">
                                     Aceptación % <span class="sort-indicator text-blue-200">↕</span>
                                 </th>
+                                <th data-sup-sort="aceptadasTR" class="sup-sortable py-2.5 px-3 text-center cursor-pointer hover:bg-[#133863]">
+                                    Of. Aceptadas TR <span class="sort-indicator text-blue-200">↕</span>
+                                </th>
+                                <th data-sup-sort="efectividadTRPct" class="sup-sortable py-2.5 px-3 text-center cursor-pointer hover:bg-[#133863]">
+                                    % Efectividad TR <span class="sort-indicator text-blue-200">↕</span>
+                                </th>
                                 <th data-sup-sort="clientesDisponible" class="sup-sortable py-2.5 px-3 text-center cursor-pointer hover:bg-[#133863]">
                                     # Clientes con Disponible <span class="sort-indicator text-blue-200">↕</span>
                                 </th>
@@ -495,6 +501,12 @@
                                 <th data-avi-sort="aceptacionPct" class="avi-sortable py-2.5 px-3 text-center cursor-pointer hover:bg-[#133863]">
                                     Aceptación % <span class="sort-indicator text-blue-200">↕</span>
                                 </th>
+                                <th data-avi-sort="aceptadasTR" class="avi-sortable py-2.5 px-3 text-center cursor-pointer hover:bg-[#133863]">
+                                    Of. Aceptadas TR <span class="sort-indicator text-blue-200">↕</span>
+                                </th>
+                                <th data-avi-sort="efectividadTRPct" class="avi-sortable py-2.5 px-3 text-center cursor-pointer hover:bg-[#133863]">
+                                    % Efectividad TR <span class="sort-indicator text-blue-200">↕</span>
+                                </th>
                                 <th data-avi-sort="clientesDisponible" class="avi-sortable py-2.5 px-3 text-center cursor-pointer hover:bg-[#133863]">
                                     # Clientes con Disponible <span class="sort-indicator text-blue-200">↕</span>
                                 </th>
@@ -554,7 +566,7 @@
             autoRefreshMinutes: 5,
             timerId: null,
             isSyncing: false,
-            lastSourceMode: 'gsheet' // 'gsheet' | 'local'
+            lastSourceMode: 'gsheet'
         };
 
         const AppState = {
@@ -697,7 +709,6 @@
         }
 
         function extractCorteFromWorksheet(worksheet, matrix, headerRowIndex) {
-            // 1. Lectura directa de celda B4 en hoja Excel/XLSX
             if (worksheet && worksheet['B4']) {
                 const rawB4 = worksheet['B4'].w || worksheet['B4'].v;
                 const formatted = formatCorteB4Value(rawB4);
@@ -707,7 +718,6 @@
                 }
             }
 
-            // 2. Posición exacta [3][1] (Fila 4, Columna B) en la matriz
             if (matrix[3] && matrix[3][1] !== undefined && matrix[3][1] !== null) {
                 const formatted = formatCorteB4Value(matrix[3][1]);
                 const norm = normalizeText(formatted);
@@ -716,7 +726,6 @@
                 }
             }
 
-            // 3. Buscar en cualquier fila antes de los encabezados (útil cuando Google Sheets recorta filas vacías arriba)
             const limitRow = headerRowIndex > 0 ? headerRowIndex : Math.min(matrix.length, 12);
             for (let r = 0; r < limitRow; r++) {
                 const row = matrix[r] || [];
@@ -834,9 +843,7 @@
                             isCsv: url.includes('csv') || contentType.includes('text/csv')
                         };
                     }
-                } catch (_) {
-                    // Intenta siguiente método
-                }
+                } catch (_) {}
             }
 
             return await fetchGvizJsonp(id, gid);
@@ -1132,6 +1139,7 @@
             const idxAceptadasTR = findColIndex(['of. aceptadas tr', 'of aceptadas tr', 'aceptadas ofertas tr', 'ofertas aceptadas tr']);
             const idxAceptPct = findColIndex(['% aceptacion tr.', '% aceptacion tr', 'acept %', '% aceptacion']);
             const idxActivadasTR = findColIndex(['activadas tr', 'tr activadas', 'q activadas tr']);
+            const idxEfectividadTR = findColIndex(['% efectividad tr', 'efectividad tr', '% efect tr']);
 
             const idxClientesDisponible = findColIndex([
                 '# clientes con disponible',
@@ -1250,6 +1258,13 @@
                     aceptPct = (activadasTR / ofertasTR) * 100;
                 }
 
+                let efectividadTRPct = 0;
+                if (idxEfectividadTR !== -1 && row[idxEfectividadTR] !== '' && row[idxEfectividadTR] !== null && row[idxEfectividadTR] !== undefined) {
+                    efectividadTRPct = parsePctCell(row[idxEfectividadTR]);
+                } else if (aceptadasTR > 0 && activadasTR > 0) {
+                    efectividadTRPct = (activadasTR / aceptadasTR) * 100;
+                }
+
                 const ventaTotal = montoAvances + montoSAV;
                 const cantidadTotal = numSAV + numAvances;
 
@@ -1275,6 +1290,7 @@
                     aceptadasTR,
                     activadasTR,
                     aceptPct,
+                    efectividadTRPct,
                     clientesDisponible,
                     efectividadPct,
                     ventaTotal,
@@ -1423,6 +1439,7 @@
                         ventaTotal: 0,
                         cantidadTotal: 0,
                         pctSum: 0,
+                        efectTRSum: 0,
                         efectPctSum: 0,
                         rowCount: 0
                     });
@@ -1438,6 +1455,7 @@
                 entry.ventaTotal += r.ventaTotal;
                 entry.cantidadTotal += r.cantidadTotal;
                 entry.pctSum += r.aceptPct;
+                entry.efectTRSum += r.efectividadTRPct;
                 entry.efectPctSum += r.efectividadPct;
                 entry.rowCount += 1;
             }
@@ -1450,6 +1468,13 @@
                     aceptacionPct = item.pctSum / item.rowCount;
                 } else if (item.ofertasTR > 0 && item.activadasTR > 0) {
                     aceptacionPct = (item.activadasTR / item.ofertasTR) * 100;
+                }
+
+                let efectividadTRPct = 0;
+                if (item.efectTRSum > 0 && item.rowCount > 0) {
+                    efectividadTRPct = item.efectTRSum / item.rowCount;
+                } else if (item.aceptadasTR > 0 && item.activadasTR > 0) {
+                    efectividadTRPct = (item.activadasTR / item.aceptadasTR) * 100;
                 }
 
                 let efectividadPct = 0;
@@ -1467,6 +1492,7 @@
                     aceptadasTR: item.aceptadasTR,
                     activadasTR: item.activadasTR,
                     aceptacionPct,
+                    efectividadTRPct,
                     clientesDisponible: item.clientesDisponible,
                     efectividadPct,
                     ventaTotal: item.ventaTotal,
@@ -1490,6 +1516,7 @@
                         ventaTotal: 0,
                         cantidadTotal: 0,
                         pctSum: 0,
+                        efectTRSum: 0,
                         efectPctSum: 0,
                         rowCount: 0
                     });
@@ -1503,6 +1530,7 @@
                 entry.ventaTotal += r.ventaTotal;
                 entry.cantidadTotal += r.cantidadTotal;
                 entry.pctSum += r.aceptPct;
+                entry.efectTRSum += r.efectividadTRPct;
                 entry.efectPctSum += r.efectividadPct;
                 entry.rowCount += 1;
             }
@@ -1515,6 +1543,13 @@
                     aceptacionPct = item.pctSum / item.rowCount;
                 } else if (item.ofertasTR > 0 && item.activadasTR > 0) {
                     aceptacionPct = (item.activadasTR / item.ofertasTR) * 100;
+                }
+
+                let efectividadTRPct = 0;
+                if (item.efectTRSum > 0 && item.rowCount > 0) {
+                    efectividadTRPct = item.efectTRSum / item.rowCount;
+                } else if (item.aceptadasTR > 0 && item.activadasTR > 0) {
+                    efectividadTRPct = (item.activadasTR / item.aceptadasTR) * 100;
                 }
 
                 let efectividadPct = 0;
@@ -1530,6 +1565,7 @@
                     aceptadasTR: item.aceptadasTR,
                     activadasTR: item.activadasTR,
                     aceptacionPct,
+                    efectividadTRPct,
                     clientesDisponible: item.clientesDisponible,
                     efectividadPct,
                     ventaTotal: item.ventaTotal,
@@ -1751,7 +1787,7 @@
 
             const total = list.length;
             if (total === 0) {
-                tbody.innerHTML = `<tr><td colspan="8" class="py-8 text-center text-slate-400">No hay supervisores que coincidan con la selección o búsqueda.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="10" class="py-8 text-center text-slate-400">No hay supervisores que coincidan con la selección o búsqueda.</td></tr>`;
                 tfoot.innerHTML = '';
                 return;
             }
@@ -1776,6 +1812,8 @@
                                 ${formatPct(s.aceptacionPct)}
                             </span>
                         </td>
+                        <td class="py-3 px-3 text-center font-bold text-slate-800 dark:text-slate-200 tabular-nums">${formatInt(s.aceptadasTR)}</td>
+                        <td class="py-3 px-3 text-center font-semibold text-indigo-700 dark:text-indigo-300 tabular-nums">${formatPct(s.efectividadTRPct)}</td>
                         <td class="py-3 px-3 text-center font-bold text-slate-800 dark:text-slate-200 tabular-nums">${formatInt(s.clientesDisponible)}</td>
                         <td class="py-3 px-3 text-center font-semibold text-sky-700 dark:text-sky-300 tabular-nums">${formatPct(s.efectividadPct)}</td>
                         <td class="py-3 px-3 text-center font-bold text-slate-800 dark:text-slate-100 tabular-nums">${formatCLP(s.ventaTotal)}</td>
@@ -1786,10 +1824,12 @@
 
             const sumOfertas = list.reduce((s, v) => s + v.ofertasTR, 0);
             const sumActivadas = list.reduce((s, v) => s + v.activadasTR, 0);
+            const sumAceptadasTR = list.reduce((s, v) => s + v.aceptadasTR, 0);
             const sumClientesDisp = list.reduce((s, v) => s + v.clientesDisponible, 0);
             const sumVenta = list.reduce((s, v) => s + v.ventaTotal, 0);
             const sumCantidad = list.reduce((s, v) => s + v.cantidadTotal, 0);
             const avgPct = list.reduce((s, v) => s + v.aceptacionPct, 0) / total;
+            const avgEfectTRPct = list.reduce((s, v) => s + v.efectividadTRPct, 0) / total;
             const avgEfectPct = list.reduce((s, v) => s + v.efectividadPct, 0) / total;
 
             tfoot.innerHTML = `
@@ -1798,6 +1838,8 @@
                     <td class="py-3.5 px-3 text-center text-blue-800 dark:text-blue-300 tabular-nums">${formatInt(sumOfertas)}</td>
                     <td class="py-3.5 px-3 text-center tabular-nums">${formatInt(sumActivadas)}</td>
                     <td class="py-3.5 px-3 text-center tabular-nums">${formatPct(avgPct)}</td>
+                    <td class="py-3.5 px-3 text-center tabular-nums">${formatInt(sumAceptadasTR)}</td>
+                    <td class="py-3.5 px-3 text-center tabular-nums">${formatPct(avgEfectTRPct)}</td>
                     <td class="py-3.5 px-3 text-center tabular-nums">${formatInt(sumClientesDisp)}</td>
                     <td class="py-3.5 px-3 text-center tabular-nums">${formatPct(avgEfectPct)}</td>
                     <td class="py-3.5 px-3 text-center tabular-nums">${formatCLP(sumVenta)}</td>
@@ -1829,7 +1871,7 @@
 
             const total = list.length;
             if (total === 0) {
-                tbody.innerHTML = `<tr><td colspan="9" class="py-10 text-center text-slate-400">No hay asesores que coincidan con los filtros o búsqueda.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="11" class="py-10 text-center text-slate-400">No hay asesores que coincidan con los filtros o búsqueda.</td></tr>`;
                 tfoot.innerHTML = '';
                 document.getElementById('avi-pagination-info').textContent = 'Mostrando 0 asesores';
                 document.getElementById('avi-pagination-controls').innerHTML = '';
@@ -1867,6 +1909,8 @@
                                 ${formatPct(v.aceptacionPct)}
                             </span>
                         </td>
+                        <td class="py-3 px-3 text-center font-bold text-slate-800 dark:text-slate-200 tabular-nums">${formatInt(v.aceptadasTR)}</td>
+                        <td class="py-3 px-3 text-center font-semibold text-indigo-700 dark:text-indigo-300 tabular-nums">${formatPct(v.efectividadTRPct)}</td>
                         <td class="py-3 px-3 text-center font-bold text-slate-800 dark:text-slate-200 tabular-nums">${formatInt(v.clientesDisponible)}</td>
                         <td class="py-3 px-3 text-center font-semibold text-sky-700 dark:text-sky-300 tabular-nums">${formatPct(v.efectividadPct)}</td>
                         <td class="py-3 px-3 text-center font-bold text-slate-800 dark:text-slate-100 tabular-nums">${formatCLP(v.ventaTotal)}</td>
@@ -1877,10 +1921,12 @@
 
             const sumOfertas = list.reduce((s, v) => s + v.ofertasTR, 0);
             const sumActivadas = list.reduce((s, v) => s + v.activadasTR, 0);
+            const sumAceptadasTR = list.reduce((s, v) => s + v.aceptadasTR, 0);
             const sumClientesDisp = list.reduce((s, v) => s + v.clientesDisponible, 0);
             const sumVenta = list.reduce((s, v) => s + v.ventaTotal, 0);
             const sumCantidad = list.reduce((s, v) => s + v.cantidadTotal, 0);
             const avgPct = list.reduce((s, v) => s + v.aceptacionPct, 0) / total;
+            const avgEfectTRPct = list.reduce((s, v) => s + v.efectividadTRPct, 0) / total;
             const avgEfectPct = list.reduce((s, v) => s + v.efectividadPct, 0) / total;
 
             tfoot.innerHTML = `
@@ -1890,6 +1936,8 @@
                     <td class="py-3.5 px-3 text-center text-blue-800 dark:text-blue-300 tabular-nums">${formatInt(sumOfertas)}</td>
                     <td class="py-3.5 px-3 text-center tabular-nums">${formatInt(sumActivadas)}</td>
                     <td class="py-3.5 px-3 text-center tabular-nums">${formatPct(avgPct)}</td>
+                    <td class="py-3.5 px-3 text-center tabular-nums">${formatInt(sumAceptadasTR)}</td>
+                    <td class="py-3.5 px-3 text-center tabular-nums">${formatPct(avgEfectTRPct)}</td>
                     <td class="py-3.5 px-3 text-center tabular-nums">${formatInt(sumClientesDisp)}</td>
                     <td class="py-3.5 px-3 text-center tabular-nums">${formatPct(avgEfectPct)}</td>
                     <td class="py-3.5 px-3 text-center tabular-nums">${formatCLP(sumVenta)}</td>
@@ -2299,7 +2347,6 @@
                 exportSectionAsPNG('section-detalle-avi', 'Detalle_AVI_Asesores');
             });
 
-            // Carga automática inicial desde Google Sheets y activación del temporizador
             startAutoRefreshTimer();
             await syncFromGoogleSheet({ silentToast: true });
         });
